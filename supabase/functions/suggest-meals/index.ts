@@ -1,6 +1,7 @@
 // BODYUP — Edge Function "suggest-meals"
-// Génère des idées de repas via Claude, adaptées au profil et aux macros restantes.
-// Clé Anthropic en secret serveur (ANTHROPIC_API_KEY). Réservé aux utilisateurs connectés.
+// Génère des recettes via Claude, en français, adaptées au profil, aux macros
+// restantes ET au garde-manger (ingrédients have/buy). Variété forcée.
+// Clé en secret serveur. Réservé aux utilisateurs connectés.
 
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 const MODEL = Deno.env.get("ANTHROPIC_MODEL") ?? "claude-opus-4-8";
@@ -30,10 +31,21 @@ const schema = {
           protein: { type: "integer" },
           carbs: { type: "integer" },
           fat: { type: "integer" },
-          time: { type: "integer", description: "Temps de préparation en minutes" },
-          tag: { type: "string", description: "Court atout, ex: Riche en protéines" },
-          ingredients: { type: "array", items: { type: "string" }, description: "Ingrédients AVEC quantités, ex: '150 g de poulet'" },
-          steps: { type: "array", items: { type: "string" }, description: "Étapes de préparation claires, une par élément" },
+          time: { type: "integer" },
+          tag: { type: "string" },
+          ingredients: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                name: { type: "string", description: "Ingrédient AVEC quantité, ex: '150 g de poulet'" },
+                have: { type: "boolean", description: "true si déjà dans le garde-manger, false si à acheter" },
+              },
+              required: ["name", "have"],
+            },
+          },
+          steps: { type: "array", items: { type: "string" } },
         },
         required: ["name", "emoji", "kcal", "protein", "carbs", "fat", "time", "tag", "ingredients", "steps"],
       },
@@ -41,6 +53,9 @@ const schema = {
   },
   required: ["meals"],
 };
+
+const CUISINES = ["méditerranéenne", "asiatique", "mexicaine", "indienne", "française", "italienne", "moyen-orientale", "japonaise", "thaï", "marocaine", "espagnole", "grecque"];
+const pick = (n: number) => [...CUISINES].sort(() => Math.random() - 0.5).slice(0, n);
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -60,19 +75,30 @@ Deno.serve(async (req) => {
     const allergies: string[] = Array.isArray(b.allergies) ? b.allergies : [];
     const goal: string = b.goal ?? "maintien";
     const r = b.remaining ?? {};
+    const pantry: string[] = Array.isArray(b.pantry) ? b.pantry : [];
+    const exclude: string[] = Array.isArray(b.exclude) ? b.exclude : [];
     const count: number = Math.min(Math.max(Number(b.count ?? 3), 1), 4);
+    const seed = b.seed ?? Math.random();
 
-    const prompt = `Tu es un nutritionniste. Propose ${count} idées de "${mealType}" en français, adaptées au profil et qui se rapprochent AU MIEUX de ce qu'il reste à consommer aujourd'hui.
+    const prompt = `Tu es un chef nutritionniste. Propose ${count} idées de "${mealType}" EN FRANÇAIS, adaptées et proches de ce qu'il reste à consommer aujourd'hui.
 Reste à consommer : ~${Math.round(r.kcal ?? 0)} kcal, ${Math.round(r.protein ?? 0)} g protéines, ${Math.round(r.carbs ?? 0)} g glucides, ${Math.round(r.fat ?? 0)} g lipides.
-Objectif de l'utilisateur : ${goal}. Régime : ${diet}. À EXCLURE absolument (allergies/intolérances) : ${allergies.length ? allergies.join(", ") : "aucune"}.
-Pour chaque repas, vise des valeurs proches des macros restantes (sans forcément les dépasser), donne un emoji pertinent, les kcal et macros, le temps de préparation, un atout court (tag), la liste des ingrédients AVEC leurs quantités (ex : "150 g de poulet", "1 c. à soupe d'huile d'olive") et les étapes de préparation détaillées (tableau "steps", une étape claire par élément). Recettes réalistes et faciles à suivre.`;
+Objectif : ${goal}. Régime : ${diet}. À EXCLURE (allergies) : ${allergies.length ? allergies.join(", ") : "aucune"}.
+
+GARDE-MANGER de l'utilisateur (ingrédients déjà disponibles) : ${pantry.length ? pantry.join(", ") : "non renseigné"}.
+- Privilégie des recettes qui utilisent ces ingrédients du garde-manger.
+- Pour CHAQUE ingrédient d'une recette : "name" inclut la quantité (ex "150 g de poulet"), et "have"=true s'il correspond (même approximativement) à un ingrédient du garde-manger, sinon "have"=false (= à acheter).
+
+VARIÉTÉ (très important) : sois original et varié. NE REPROPOSE PAS ces recettes déjà vues : ${exclude.length ? exclude.join(" ; ") : "aucune"}.
+Varie les cuisines (par ex. ${pick(3).join(", ")}), les sources de protéines et les techniques d'une proposition à l'autre. Graine d'aléa unique : ${seed}.
+
+Pour chaque repas : un emoji pertinent, kcal et macros proches des valeurs restantes, le temps de préparation (min), un atout court (tag), les ingrédients (avec have), et des étapes de préparation détaillées (une étape claire par élément). Recettes réalistes et faciles.`;
 
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 2048,
+        max_tokens: 3000,
         output_config: { format: { type: "json_schema", schema } },
         messages: [{ role: "user", content: [{ type: "text", text: prompt }] }],
       }),

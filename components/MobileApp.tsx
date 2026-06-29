@@ -11,7 +11,8 @@ import { supabase } from "@/lib/supabase";
 import { useDay, type NewFood } from "@/lib/useDay";
 import { searchFoods, lookupBarcode, type FoodHit } from "@/lib/foods";
 import { analyzeFoodPhoto, type FoodAnalysis } from "@/lib/vision";
-import { suggestMeals, type AiMeal } from "@/lib/meals";
+import { suggestMeals, normIngredients, type AiMeal } from "@/lib/meals";
+import { translateTexts } from "@/lib/translate";
 import type { Profile } from "@/lib/supabase";
 import { coachThread, coachChips, badges, progressTimeline } from "@/lib/data";
 import { exercises, intensityClass, type Exercise, type Intensity } from "@/lib/exercises";
@@ -742,8 +743,19 @@ const MEAL_TABS = [
   { label: "Déjeuner", key: "dejeuner" }, { label: "Collation", key: "collation" },
 ] as const;
 
-function RecipeModal({ meal, added, onClose, onAdd, onCart }: { meal: AiMeal; added: boolean; onClose: () => void; onAdd: () => void; onCart: () => void }) {
+const FOCUS = [
+  { label: "Équilibré", suffix: "" },
+  { label: "Prise de muscle", suffix: " (riche en protéines, pour la prise de muscle)" },
+  { label: "Perte de poids", suffix: " (léger, rassasiant, faible en calories)" },
+  { label: "Pré-entraînement", suffix: " (riche en glucides, facile à digérer, avant le sport)" },
+  { label: "Post-entraînement", suffix: " (riche en protéines et glucides, récupération après le sport)" },
+] as const;
+
+function RecipeModal({ meal, added, userId, onClose, onAdd, onCart }: { meal: AiMeal; added: boolean; userId?: string; onClose: () => void; onAdd: () => void; onCart: () => void }) {
   const steps = Array.isArray(meal.steps) ? meal.steps : [meal.steps];
+  const ings = normIngredients(meal.ingredients);
+  const missing = ings.filter((x) => !x.have);
+  const [bought, setBought] = useState(false);
   return (
     <div className={s.modalwrap} onClick={onClose}>
       <div className={`${s.sheet} ${s.rsheet}`} onClick={(e) => e.stopPropagation()}>
@@ -758,12 +770,25 @@ function RecipeModal({ meal, added, onClose, onAdd, onCart }: { meal: AiMeal; ad
           <div className={s.ncell}><b>{meal.carbs}g</b><span>gluc</span></div>
           <div className={s.ncell}><b>{meal.fat}g</b><span>lip</span></div>
         </div>
-        <div className={s.rsec}>Ingrédients</div>
-        <ul className={s.ringlist}>{meal.ingredients.map((x, i) => <li key={i}>{x}</li>)}</ul>
+        <div className={s.rsec}>Ingrédients <span style={{ fontSize: 11, color: "var(--txt-3)", fontFamily: "var(--body)", fontWeight: 500 }}>· {ings.length - missing.length} en stock / {missing.length} à acheter</span></div>
+        <ul className={s.inglist}>
+          {ings.map((x, i) => (
+            <li key={i} className={x.have ? s.ihave : s.ibuy}>
+              <Icon name={x.have ? "check" : "cart"} size={13} />
+              <span>{x.name}</span>
+              {!x.have && <span className={s.buytag}>à acheter</span>}
+            </li>
+          ))}
+        </ul>
+        {missing.length > 0 && userId && (
+          <button className={`${s.btn} ${s.ghost}`} style={{ width: "100%", marginBottom: 6 }} disabled={bought} onClick={async () => { await addManyToBuy(userId, missing.map((x) => ({ name: x.name }))); setBought(true); }}>
+            <Icon name={bought ? "check" : "cart"} size={16} />{bought ? "Manquant ajouté aux courses ✓" : `Acheter le manquant (${missing.length})`}
+          </button>
+        )}
         <div className={s.rsec}>Préparation</div>
         <ol className={s.rsteps}>{steps.map((x, i) => <li key={i}>{x}</li>)}</ol>
         <div className={s.scanbtns} style={{ marginTop: 18 }}>
-          <button className={`${s.btn} ${s.ghost}`} onClick={onCart}><Icon name="cart" size={16} />Courses</button>
+          <button className={`${s.btn} ${s.ghost}`} onClick={onCart}><Icon name="cart" size={16} />Ma liste</button>
           <button className={`${s.btn} ${s.prim}`} onClick={onAdd}><Icon name={added ? "check" : "plus"} size={16} />{added ? "Ajouté" : "Au journal"}</button>
         </div>
       </div>
@@ -779,6 +804,14 @@ function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile 
   const [err, setErr] = useState<string | null>(null);
   const [added, setAdded] = useState<Record<string, boolean>>({});
   const [detail, setDetail] = useState<AiMeal | null>(null);
+  const [focusI, setFocusI] = useState(0);
+  const [seen, setSeen] = useState<string[]>([]);
+  const { user } = useAuth();
+  const [pantry, setPantry] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (user) loadPantry(user.id).then((items) => setPantry(items.filter((i) => i.status === "have").map((i) => i.name)));
+  }, [user]);
 
   const goals = macroGoals(target);
 
@@ -794,10 +827,15 @@ function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile 
   };
 
   const generate = async () => {
-    setLoading(true); setErr(null); setMeals([]); setAdded({});
+    setLoading(true); setErr(null); setAdded({});
     try {
-      const r = await suggestMeals({ mealType: MEAL_TABS[mi].label, goal: profile?.goal ?? "maintien", remaining, count: 3 });
+      const r = await suggestMeals({
+        mealType: MEAL_TABS[mi].label + FOCUS[focusI].suffix,
+        goal: profile?.goal ?? "maintien",
+        remaining, count: 3, pantry, exclude: seen,
+      });
       setMeals(r);
+      setSeen((p) => [...p, ...r.map((m) => m.name)].slice(-40));
     } catch (x) {
       setErr(x instanceof Error ? x.message : "Génération impossible.");
     } finally {
@@ -820,11 +858,14 @@ function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile 
       {mode === "explorer" ? <Explorer go={go} /> : <>
 
       <div className={`${s.mealtabs} ${s.r} ${s.r2}`}>
-        {MEAL_TABS.map((t, i) => <div key={t.key} className={`${s.mtab} ${mi === i ? s.on : ""}`} onClick={() => { setMi(i); setMeals([]); setErr(null); }}>{t.label}</div>)}
+        {MEAL_TABS.map((t, i) => <div key={t.key} className={`${s.mtab} ${mi === i ? s.on : ""}`} onClick={() => { setMi(i); setMeals([]); setSeen([]); setErr(null); }}>{t.label}</div>)}
+      </div>
+      <div className={`${s.exfrow} ${s.r} ${s.r2}`} style={{ marginBottom: 12 }}>
+        {FOCUS.map((f, i) => <span key={f.label} className={`${s.ef} ${focusI === i ? s.on : ""}`} onClick={() => { setFocusI(i); setMeals([]); setSeen([]); }}>{f.label}</span>)}
       </div>
 
       <div className={`${s.genbar} ${s.r} ${s.r3}`}>
-        <div className={s.gl}>Repas calés sur ce qu&apos;il te reste aujourd&apos;hui</div>
+        <div className={s.gl}>{pantry.length ? `${pantry.length} ingrédient${pantry.length > 1 ? "s" : ""} dans ton garde-manger seront privilégiés` : "Repas calés sur ce qu'il te reste aujourd'hui"}</div>
         <div className={s.gmac}>
           <span className={s.gpill}><b>{fr(remaining.kcal)}</b> kcal</span>
           <span className={s.gpill}><b>{remaining.protein}</b>g prot</span>
@@ -832,7 +873,7 @@ function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile 
           <span className={s.gpill}><b>{remaining.fat}</b>g lip</span>
         </div>
         <button className={s.genbtn} onClick={generate} disabled={loading}>
-          <Icon name="spark" size={18} />{loading ? "Génération…" : `Générer des idées de ${MEAL_TABS[mi].label.toLowerCase()}`}
+          <Icon name="spark" size={18} />{loading ? "Génération…" : meals.length ? "Proposer d'autres recettes" : `Générer des idées de ${MEAL_TABS[mi].label.toLowerCase()}`}
         </button>
       </div>
 
@@ -871,6 +912,7 @@ function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile 
         <RecipeModal
           meal={detail}
           added={!!added[detail.name]}
+          userId={user?.id}
           onClose={() => setDetail(null)}
           onAdd={async () => { await addMeal(detail); }}
           onCart={() => { setDetail(null); go("courses"); }}
@@ -881,7 +923,20 @@ function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile 
   );
 }
 
-/* ---------------- EXPLORER RECETTES (TheMealDB) ---------------- */
+/* ---------------- EXPLORER RECETTES (TheMealDB, traduit FR auto) ---------------- */
+const mealTitleCache = new Map<string, string>();
+
+async function translateTitles(m: MealLite[]): Promise<MealLite[]> {
+  const need = m.filter((x) => !mealTitleCache.has(x.title));
+  if (need.length) {
+    try {
+      const t = await translateTexts(need.map((x) => x.title));
+      need.forEach((x, i) => mealTitleCache.set(x.title, t[i] ?? x.title));
+    } catch { /* garde l'anglais si la traduction échoue */ }
+  }
+  return m.map((x) => ({ ...x, title: mealTitleCache.get(x.title) ?? x.title }));
+}
+
 function Explorer({ go }: { go: (t: Tab) => void }) {
   const { user } = useAuth();
   const [cats, setCats] = useState<string[]>([]);
@@ -892,9 +947,27 @@ function Explorer({ go }: { go: (t: Tab) => void }) {
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   useEffect(() => { mealCategories().then((c) => { if (c.length) setCats(c); }); }, []);
-  useEffect(() => { setLoading(true); mealsByCategory(cat).then((m) => { setMeals(m); setLoading(false); }); }, [cat]);
+  useEffect(() => {
+    setLoading(true);
+    mealsByCategory(cat).then(async (m) => { setMeals(m); setLoading(false); setMeals(await translateTitles(m)); });
+  }, [cat]);
 
-  const open = async (id: string) => { setLoadingDetail(true); setDetail(null); const m = await mealLookup(id); setDetail(m); setLoadingDetail(false); };
+  const open = async (id: string) => {
+    setLoadingDetail(true); setDetail(null);
+    const m = await mealLookup(id);
+    if (m) {
+      try {
+        const texts = [m.title, ...m.ingredients.map((i) => `${i.measure} ${i.name}`.trim()), ...m.steps];
+        const t = await translateTexts(texts);
+        let k = 0;
+        const title = t[k++];
+        const ingredients = m.ingredients.map(() => ({ measure: "", name: t[k++] }));
+        const steps = m.steps.map(() => t[k++]);
+        setDetail({ ...m, title, ingredients, steps });
+      } catch { setDetail(m); }
+    }
+    setLoadingDetail(false);
+  };
   const list = cats.length ? cats : ["Chicken", "Beef", "Seafood", "Vegetarian", "Pasta", "Dessert", "Breakfast"];
 
   return (

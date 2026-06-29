@@ -2,6 +2,7 @@
 
 import { supabase } from "./supabase";
 
+export interface AiIngredient { name: string; have: boolean }
 export interface AiMeal {
   name: string;
   emoji: string;
@@ -11,8 +12,8 @@ export interface AiMeal {
   fat: number;
   time: number;
   tag: string;
-  ingredients: string[];
-  steps: string[] | string; // tableau d'étapes (ancien format: chaîne)
+  ingredients: AiIngredient[] | string[]; // nouveau format: objets {name,have}
+  steps: string[] | string;
 }
 
 export interface SuggestParams {
@@ -22,10 +23,12 @@ export interface SuggestParams {
   goal?: string | null;
   remaining: { kcal: number; protein: number; carbs: number; fat: number };
   count?: number;
+  pantry?: string[];
+  exclude?: string[];
 }
 
 export async function suggestMeals(params: SuggestParams): Promise<AiMeal[]> {
-  const { data, error } = await supabase.functions.invoke("suggest-meals", { body: params });
+  const { data, error } = await supabase.functions.invoke("suggest-meals", { body: { ...params, seed: Math.random() } });
   if (error) {
     let detail = error.message || "Génération impossible";
     try {
@@ -36,4 +39,9 @@ export async function suggestMeals(params: SuggestParams): Promise<AiMeal[]> {
   }
   if (data?.error) throw new Error(data.error);
   return (data?.meals ?? []) as AiMeal[];
+}
+
+/** Normalise les ingrédients (compat ancien format chaîne + nouveau {name,have}). */
+export function normIngredients(ings: AiIngredient[] | string[] | undefined): AiIngredient[] {
+  return ((ings as (AiIngredient | string)[]) ?? []).map((x) => (typeof x === "string" ? { name: x, have: false } : { name: x.name, have: !!x.have }));
 }
