@@ -850,7 +850,12 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
   const [weights, setWeights] = useState<{ date: string; weight_kg: number }[]>([]);
   const [editW, setEditW] = useState(false);
   const [wval, setWval] = useState("");
+  const [editA, setEditA] = useState(false);
+  const [stepsVal, setStepsVal] = useState("");
+  const [sleepVal, setSleepVal] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const fmtSleep = (m: number) => (m > 0 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}` : "—");
 
   const loadW = useCallback(async () => {
     if (!user) return;
@@ -913,13 +918,15 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
         <Metric icon="flameLine" tint="rgba(255,122,83,.12)" color="var(--coral)" v={fr(day.burned)} unit=" kcal" k="Brûlées aujourd'hui" />
         <Metric icon="check" tint="rgba(201,255,60,.12)" color="var(--lime)" v={profile?.calorie_target ? fr(profile.calorie_target) : "—"} unit=" kcal" k="Objectif quotidien" />
         <Metric icon="trend" tint="rgba(183,155,255,.12)" color="var(--violet)" v={deficit != null ? `${deficit >= 0 ? "−" : "+"}${fr(Math.abs(deficit))}` : "—"} unit=" kcal" k="Déficit du jour" />
+        <Metric icon="steps" tint="rgba(91,209,255,.12)" color="var(--sky)" v={fr(day.steps)} unit=" pas" k="Pas aujourd'hui" />
+        <Metric icon="moon" tint="rgba(183,155,255,.12)" color="var(--violet)" v={fmtSleep(day.sleepMin)} unit="" k="Sommeil" />
         <Metric icon="trend" tint="rgba(255,194,75,.12)" color="var(--amber)" v={profile?.tdee ? fr(profile.tdee) : "—"} unit=" kcal" k="Dépense (TDEE)" />
         <Metric icon="bolt" tint="rgba(91,209,255,.12)" color="var(--sky)" v={(day.glasses * 0.25).toFixed(1)} unit=" L" k="Eau aujourd'hui" />
       </div>
 
-      <div className={`${s.healthcard} ${s.r} ${s.r4}`} onClick={() => go("profil")}>
-        <div className={s.ic}><Icon name="heart" /></div>
-        <div><b>Pas · sommeil · fréquence cardiaque</b><span>À connecter via Apple Santé / Google Fit</span></div>
+      <div className={`${s.healthcard} ${s.r} ${s.r4}`} onClick={() => { setStepsVal(day.steps ? String(day.steps) : ""); setSleepVal(day.sleepMin ? (day.sleepMin / 60).toFixed(1) : ""); setEditA(true); }}>
+        <div className={s.ic}><Icon name="steps" /></div>
+        <div><b>Saisir pas &amp; sommeil</b><span>Manuel — la synchro Apple Santé arrive (app native)</span></div>
         <span className={s.ch}>›</span>
       </div>
 
@@ -935,6 +942,23 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
             <label>Poids (kg)</label>
             <input className={s.inp} type="number" inputMode="decimal" value={wval} onChange={(e) => setWval(e.target.value)} placeholder="78.5" autoFocus />
             <button className={s.savebtn} onClick={saveWeight} disabled={busy || !wval}>{busy ? "Enregistrement…" : "Enregistrer"}</button>
+          </div>
+        </div>
+      )}
+
+      {editA && (
+        <div className={s.modalwrap} onClick={() => setEditA(false)}>
+          <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
+            <h3>Activité du jour <span className={s.x} onClick={() => setEditA(false)}>✕</span></h3>
+            <label>Nombre de pas</label>
+            <input className={s.inp} type="number" inputMode="numeric" value={stepsVal} onChange={(e) => setStepsVal(e.target.value)} placeholder="8000" />
+            <label>Sommeil (heures)</label>
+            <input className={s.inp} type="number" inputMode="decimal" value={sleepVal} onChange={(e) => setSleepVal(e.target.value)} placeholder="7.5" />
+            <button className={s.savebtn} onClick={async () => {
+              setBusy(true);
+              await day.setDailyMetric({ steps: parseInt(stepsVal) || 0, sleep_min: Math.round((parseFloat(sleepVal) || 0) * 60) });
+              setBusy(false); setEditA(false);
+            }} disabled={busy}>{busy ? "Enregistrement…" : "Enregistrer"}</button>
           </div>
         </div>
       )}
