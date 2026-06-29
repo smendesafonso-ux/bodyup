@@ -69,6 +69,38 @@ async function searchOFF(q: string): Promise<FoodHit[]> {
 
 const round1 = (v: unknown) => (typeof v === "number" ? Math.round(v * 10) / 10 : 0);
 
+/** Recherche un produit par code-barres sur Open Food Facts. */
+export async function lookupBarcode(code: string): Promise<FoodHit | null> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 6000);
+    const res = await fetch(
+      `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,product_name_fr,brands,nutriments`,
+      { signal: ctrl.signal }
+    );
+    clearTimeout(t);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.status !== 1 || !json.product) return null;
+    const p = json.product;
+    const n = p.nutriments ?? {};
+    const kcal = n["energy-kcal_100g"];
+    const name = p.product_name_fr || p.product_name;
+    if (!name || kcal == null) return null;
+    return {
+      name: String(name).trim(),
+      brand: p.brands ? String(p.brands).split(",")[0].trim() : null,
+      kcal100: Math.round(kcal),
+      p100: round1(n.proteins_100g),
+      c100: round1(n.carbohydrates_100g),
+      f100: round1(n.fat_100g),
+      source: "off",
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Recherche combinée : base BODYUP d'abord (propre), puis Open Food Facts. */
 export async function searchFoods(q: string): Promise<FoodHit[]> {
   const query = q.trim();

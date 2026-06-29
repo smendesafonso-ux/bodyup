@@ -8,7 +8,8 @@ import { CalorieRing } from "./CalorieRing";
 import { fr } from "@/lib/nutrition";
 import { useAuth } from "@/lib/auth";
 import { useDay, type NewFood } from "@/lib/useDay";
-import { searchFoods, type FoodHit } from "@/lib/foods";
+import { searchFoods, lookupBarcode, type FoodHit } from "@/lib/foods";
+import { analyzeFoodPhoto, type FoodAnalysis } from "@/lib/vision";
 import type { Profile } from "@/lib/supabase";
 import { workouts, recipes, coachThread, coachChips, badges, shoppingList, progressTimeline } from "@/lib/data";
 
@@ -74,7 +75,7 @@ export default function MobileApp() {
               {tab === "home" && <HomeScreen profile={profile} day={day} target={target} onAvatar={() => setTab("profil")} />}
               {tab === "journal" && <JournalScreen day={day} onAdd={(m) => setAddMeal(m)} />}
               {tab === "repas" && <RepasScreen day={day} go={setTab} />}
-              {tab === "scan" && <ScanScreen onValidate={() => setAddMeal("dejeuner")} />}
+              {tab === "scan" && <ScanScreen day={day} />}
               {tab === "exo" && <ExoScreen day={day} target={target} />}
               {tab === "coach" && <CoachScreen />}
               {tab === "stats" && <StatsScreen profile={profile} go={setTab} />}
@@ -396,39 +397,133 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
   );
 }
 
-/* ---------------- SCAN IA (démo) ---------------- */
-function ScanScreen({ onValidate }: { onValidate: () => void }) {
+/* ---------------- SCAN IA (photo Claude + code-barres) ---------------- */
+function ScanScreen({ day }: { day: Day }) {
   const [mode, setMode] = useState(0);
+  const [meal, setMeal] = useState<MealKey>("dejeuner");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<FoodAnalysis | null>(null);
+  const [bc, setBc] = useState<FoodHit | null>(null);
+  const [code, setCode] = useState("");
+  const [grams, setGrams] = useState("100");
+  const fileRef = useRef<HTMLInputElement>(null);
   const modes: { icon: IconName; label: string }[] = [
     { icon: "camera", label: "Photo" }, { icon: "barcode", label: "Code-barres" }, { icon: "mic", label: "Vocal" },
   ];
+
+  const reset = () => { setPhoto(null); setBc(null); setErr(null); setCode(""); setGrams("100"); };
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBusy(true); setErr(null); setPhoto(null);
+    try {
+      const r = await analyzeFoodPhoto(file);
+      setPhoto(r); setGrams(String(Math.round(r.grams)));
+    } catch (x) {
+      setErr(x instanceof Error ? x.message : "Analyse impossible. Réessaie.");
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const onBarcode = async () => {
+    if (code.trim().length < 6) return;
+    setBusy(true); setErr(null); setBc(null);
+    const hit = await lookupBarcode(code.trim());
+    setBusy(false);
+    if (hit) { setBc(hit); setGrams("100"); }
+    else setErr("Produit introuvable sur Open Food Facts. Essaie la photo ou la saisie manuelle.");
+  };
+
+  const g = parseFloat(grams) || 0;
+  // photo : valeurs absolues pour la portion estimée → on met à l'échelle
+  const pf = photo && photo.grams > 0 ? g / photo.grams : 0;
+  const bf = g / 100;
+  const calc = photo
+    ? { kcal: Math.round(photo.kcal * pf), p: Math.round(photo.protein * pf), c: Math.round(photo.carbs * pf), f: Math.round(photo.fat * pf) }
+    : bc
+    ? { kcal: Math.round(bc.kcal100 * bf), p: Math.round(bc.p100 * bf), c: Math.round(bc.c100 * bf), f: Math.round(bc.f100 * bf) }
+    : null;
+  const resultName = photo ? photo.name : bc ? (bc.brand ? `${bc.name} (${bc.brand})` : bc.name) : "";
+
+  const addToJournal = async () => {
+    if (!calc || g <= 0) return;
+    setBusy(true);
+    await day.addEntry({ meal_type: meal, name: resultName, qty: `${g} g`, kcal: calc.kcal, protein: calc.p, carbs: calc.c, fat: calc.f });
+    reset();
+  };
+
   return (
     <>
-      <div className={`${s.phead} ${s.r} ${s.r1}`}><div><div className={s.hi}>Reconnaissance instantanée</div><h2>Scan IA <span className={s.demoflag}>DÉMO</span></h2></div></div>
+      <div className={`${s.phead} ${s.r} ${s.r1}`}><div><div className={s.hi}>Reconnaissance par IA</div><h2>Scan</h2></div></div>
       <div className={`${s.scanmodes} ${s.r} ${s.r2}`}>
         {modes.map((m, i) => (
-          <div key={m.label} className={`${s.smode} ${mode === i ? s.on : ""}`} onClick={() => setMode(i)}>
+          <div key={m.label} className={`${s.smode} ${mode === i ? s.on : ""}`} onClick={() => { setMode(i); reset(); }}>
             <Icon name={m.icon} size={20} /><span>{m.label}</span>
           </div>
         ))}
       </div>
-      <div className={`${s.cam} ${s.r} ${s.r3}`}>
-        <div className={s.frame}><span /><span /><span /><span /><div className={s.plate}>🍝</div></div>
-        <div className={s.scanline} />
-        <div className={s.detected}><span className={s.pp} /><b>Pâtes bolognaise</b> détecté</div>
-      </div>
-      <div className={`${s.scancard} ${s.r} ${s.r4}`}>
-        <div className={s.ttl}><b>Pâtes bolognaise</b><span className={s.conf}>97% sûr</span></div>
-        <div className={s.nrow}>
-          {[["620", "kcal"], ["28g", "prot"], ["74g", "gluc"], ["22g", "lip"]].map(([v, l]) => (
-            <div key={l} className={s.ncell}><b>{v}</b><span>{l}</span></div>
-          ))}
+
+      {mode === 0 && (
+        <>
+          <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={onFile} />
+          <div className={`${s.cam} ${s.r} ${s.r3}`}>
+            <div className={s.frame}><span /><span /><span /><span /></div>
+            {!busy && (
+              <div className={s.capture} onClick={() => fileRef.current?.click()}>
+                <div className={s.cbtn}><Icon name="camera" size={32} /></div>
+                <span>Prendre une photo de ton repas</span>
+              </div>
+            )}
+            {busy && <div className={s.analyzing}><div className={s.asp} /><span>L&apos;IA analyse ton repas…</span></div>}
+          </div>
+        </>
+      )}
+
+      {mode === 1 && (
+        <div className={`${s.r} ${s.r3}`}>
+          <div className={s.bcform}>
+            <input inputMode="numeric" placeholder="Saisis le code-barres" value={code} onChange={(e) => setCode(e.target.value)} />
+            <button onClick={onBarcode} disabled={busy}>{busy ? "…" : "Chercher"}</button>
+          </div>
         </div>
-        <div className={s.scanbtns}>
-          <button className={`${s.btn} ${s.ghost}`}><Icon name="refresh" size={16} />Reprendre</button>
-          <button className={`${s.btn} ${s.prim}`} onClick={onValidate}><Icon name="check" size={16} />Ajouter</button>
+      )}
+
+      {mode === 2 && (
+        <div className={`${s.scanerr} ${s.r} ${s.r3}`} style={{ background: "rgba(183,155,255,.1)", borderColor: "rgba(183,155,255,.3)", color: "var(--txt)" }}>
+          La saisie vocale arrive bientôt. En attendant, utilise la photo ou la recherche d&apos;aliments dans le Journal.
         </div>
-      </div>
+      )}
+
+      {err && <div className={`${s.scanerr} ${s.r}`}>{err}</div>}
+
+      {calc && (
+        <div className={`${s.scancard} ${s.r}`}>
+          <div className={s.ttl}><b>{resultName}</b>{photo && <span className={s.conf}>{Math.round(photo.confidence * 100)}% sûr</span>}</div>
+          <div className={s.qtyrow}>
+            <input type="number" inputMode="numeric" value={grams} onChange={(e) => setGrams(e.target.value)} />
+            <span className={s.u}>grammes</span>
+          </div>
+          <div className={s.nrow}>
+            <div className={s.ncell}><b>{calc.kcal}</b><span>kcal</span></div>
+            <div className={s.ncell}><b>{calc.p}g</b><span>prot</span></div>
+            <div className={s.ncell}><b>{calc.c}g</b><span>gluc</span></div>
+            <div className={s.ncell}><b>{calc.f}g</b><span>lip</span></div>
+          </div>
+          <div className={s.mealpick}>
+            {MEAL_DEFS.map((m) => (
+              <button key={m.key} className={meal === m.key ? s.on : ""} onClick={() => setMeal(m.key)}>{m.emoji} {m.name.split("-")[0].split(" ")[0]}</button>
+            ))}
+          </div>
+          <div className={s.scanbtns}>
+            <button className={`${s.btn} ${s.ghost}`} onClick={reset}><Icon name="refresh" size={16} />Reprendre</button>
+            <button className={`${s.btn} ${s.prim}`} onClick={addToJournal} disabled={busy || g <= 0}><Icon name="check" size={16} />Valider</button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

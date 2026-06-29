@@ -242,6 +242,23 @@
 .synccard span{font-size:11px;color:var(--lime);display:flex;align-items:center;justify-content:center;gap:4px;margin-top:3px}
 .synccard span svg{width:11px;height:11px;margin:0}
 
+/* ---------- scan : capture & analyse ---------- */
+.capture{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;cursor:pointer}
+.capture .cbtn{width:74px;height:74px;border-radius:50%;background:var(--lime);display:grid;place-items:center;box-shadow:0 10px 30px rgba(201,255,60,.4)}
+.capture .cbtn svg{width:32px;height:32px;color:#0a1400}
+.capture span{font-size:13px;color:var(--txt);font-weight:600;background:rgba(7,10,8,.6);padding:6px 14px;border-radius:100px;backdrop-filter:blur(6px)}
+.analyzing{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,10,8,.72);backdrop-filter:blur(4px)}
+.analyzing .asp{width:38px;height:38px;border:3px solid rgba(201,255,60,.25);border-top-color:var(--lime);border-radius:50%;animation:spin .7s linear infinite}
+.analyzing span{font-size:13.5px;color:var(--txt);font-weight:600}
+.scanerr{background:rgba(255,122,83,.1);border:1px solid rgba(255,122,83,.3);color:#ffb9a3;border-radius:14px;padding:13px 15px;font-size:13px;line-height:1.45;margin-top:14px}
+.bcform{display:flex;gap:9px;margin-top:14px}
+.bcform input{flex:1;background:var(--card);border:1px solid var(--card-bd);border-radius:14px;padding:14px 16px;color:var(--txt);font-family:var(--body);font-size:15px;outline:none}
+.bcform input:focus{border-color:var(--lime)}
+.bcform button{flex:0 0 auto;padding:0 18px;border:none;border-radius:14px;background:var(--lime);color:#0a1400;font-family:var(--body);font-weight:600;font-size:14px;cursor:pointer}
+.qtyrow{display:flex;align-items:center;gap:10px;margin:4px 0 14px}
+.qtyrow input{flex:1;background:var(--surface);border:1px solid var(--hair);border-radius:13px;padding:12px 14px;color:var(--txt);font-family:var(--body);font-size:15px;outline:none}
+.qtyrow .u{font-size:13px;color:var(--txt-2);font-weight:600}
+
 /* ---------- sub-screen header (back) ---------- */
 .subhead{display:flex;align-items:center;gap:13px;padding:8px 4px 18px}
 .backbtn{width:42px;height:42px;border-radius:14px;background:var(--card);border:1px solid var(--card-bd);display:grid;place-items:center;flex:0 0 auto;cursor:pointer;color:var(--txt)}
