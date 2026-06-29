@@ -338,7 +338,10 @@
 .fitem2 .iname{flex:1;font-size:14px;font-weight:500}
 .fitem2 .iname small{display:block;color:var(--txt-3);font-size:11.5px;font-weight:400}
 .fitem2.off .iname{color:var(--txt-3)}
-.fitem2 .ikcal{font-size:13px;color:var(--txt-2);font-weight:600}
+.fitem2 .gin{width:62px;background:var(--surface);border:1px solid var(--hair);border-radius:9px;padding:7px 8px;color:var(--txt);font-family:var(--body);font-size:13px;text-align:right;outline:none;flex:0 0 auto}
+.fitem2 .gin:focus{border-color:var(--lime)}
+.fitem2 .gu{font-size:12px;color:var(--txt-3);flex:0 0 auto;margin-left:-4px}
+.fitem2 .ikcal{font-size:13px;color:var(--txt-2);font-weight:600;min-width:62px;text-align:right}
 .hintline{font-size:12px;color:var(--txt-2);margin:2px 4px 8px}
 
 /* Repas IA — génération */
@@ -453,6 +456,34 @@
 .mphoto{width:100%;height:185px;object-fit:cover;border-radius:18px;margin-bottom:14px;background:var(--surface)}
 .mmeta{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
 .mmeta span{font-size:12px;font-weight:600;color:var(--txt-2);background:var(--surface);border:1px solid var(--hair);border-radius:100px;padding:5px 11px}
+
+/* partage */
+.invcard{background:var(--card);border:1px solid var(--card-bd);border-radius:20px;padding:16px;margin-bottom:16px}
+.invcard .il{font-family:var(--display);font-weight:600;font-size:15px;margin-bottom:11px}
+.invcard input{width:100%;background:var(--surface);border:1px solid var(--card-bd);border-radius:13px;padding:13px 15px;color:var(--txt);font-family:var(--body);font-size:14.5px;outline:none;margin-bottom:12px}
+.invcard input:focus{border-color:var(--lime)}
+.catrow{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:13px}
+.catchip{font-size:12.5px;font-weight:600;padding:8px 13px;border-radius:100px;border:1px solid var(--card-bd);background:var(--surface);color:var(--txt-2);cursor:pointer;display:flex;align-items:center;gap:6px}
+.catchip.on{background:rgba(201,255,60,.12);border-color:var(--lime);color:var(--lime)}
+.catchip svg{width:13px;height:13px}
+.invmsg{font-size:12.5px;color:var(--lime);margin-top:4px}
+.connrow{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--hair);border-radius:16px;padding:13px 15px;margin-bottom:10px}
+.connrow .av2{width:40px;height:40px;border-radius:13px;background:linear-gradient(140deg,#2a3322,#171c12);border:1px solid var(--card-bd);display:grid;place-items:center;font-family:var(--display);font-weight:600;color:var(--lime);flex:0 0 auto;text-transform:uppercase}
+.connrow .ce{flex:1;min-width:0}
+.connrow .ce b{font-size:13.5px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.connrow .ce span{font-size:11.5px;color:var(--txt-2)}
+.connrow .ca{display:flex;gap:7px;flex:0 0 auto}
+.cbtn2{border:none;border-radius:11px;padding:9px 12px;font-family:var(--body);font-weight:600;font-size:12.5px;cursor:pointer}
+.cbtn2.acc{background:var(--lime);color:#0a1400}
+.cbtn2.dec{background:var(--surface);border:1px solid var(--card-bd);color:var(--txt-2)}
+.cbtn2.viewb{background:rgba(91,209,255,.12);color:var(--sky)}
+.sdhead{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.sdhead .av2{width:48px;height:48px;border-radius:15px}
+.sdhead b{font-family:var(--display);font-weight:600;font-size:17px}
+.sdsec{font-family:var(--display);font-weight:600;font-size:14px;margin:18px 0 10px}
+.sdrow{display:flex;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--hair);border-radius:14px;padding:13px 15px;margin-bottom:9px;font-size:14px}
+.sdrow b{font-family:var(--display);font-weight:600;font-size:18px}
+.sdrow .sl{color:var(--txt-2);font-size:13px}
 
 /* ---------- photos de progression ---------- */
 .compare{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:14px}

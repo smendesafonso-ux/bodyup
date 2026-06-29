@@ -18,8 +18,9 @@ import { coachThread, coachChips, badges, progressTimeline } from "@/lib/data";
 import { exercises, intensityClass, type Exercise, type Intensity } from "@/lib/exercises";
 import { loadPantry, addPantryItem, addManyToBuy, setPantryStatus, removePantryItem, searchCatalog, STAPLES, type PantryItem } from "@/lib/pantry";
 import { mealCategories, mealsByCategory, mealLookup, type MealLite, type MealFull } from "@/lib/themealdb";
+import { loadConnections, sendInvite, acceptInvite, removeConnection, loadSharedData, SHARE_LABELS, ALL_CATS, type Connection, type ShareCat, type SharedData } from "@/lib/social";
 
-type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil" | "courses" | "progress";
+type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil" | "courses" | "progress" | "partage";
 type Day = ReturnType<typeof useDay>;
 type MealKey = "petit-dej" | "dejeuner" | "collation" | "diner";
 
@@ -92,9 +93,10 @@ export default function MobileApp() {
               {tab === "exo" && <ExoScreen day={day} target={target} />}
               {tab === "coach" && <CoachScreen />}
               {tab === "stats" && <StatsScreen profile={profile} day={day} go={setTab} />}
-              {tab === "profil" && <ProfilScreen profile={profile} email={user?.email ?? ""} />}
+              {tab === "profil" && <ProfilScreen profile={profile} email={user?.email ?? ""} go={setTab} />}
               {tab === "courses" && <CoursesScreen back={() => setTab("repas")} />}
               {tab === "progress" && <ProgressScreen profile={profile} back={() => setTab("stats")} />}
+              {tab === "partage" && <PartageScreen back={() => setTab("profil")} />}
             </div>
           </div>
 
@@ -422,13 +424,14 @@ function ScanScreen({ day }: { day: Day }) {
   const [grams, setGrams] = useState("100");
   const [scanning, setScanning] = useState(false);
   const [checked, setChecked] = useState<Set<number>>(new Set());
+  const [itemGrams, setItemGrams] = useState<Record<number, string>>({});
   const fileRef = useRef<HTMLInputElement>(null);
   const resultRef = useRef<HTMLDivElement>(null);
   const modes: { icon: IconName; label: string }[] = [
     { icon: "camera", label: "Photo" }, { icon: "barcode", label: "Code-barres" }, { icon: "mic", label: "Vocal" },
   ];
 
-  const reset = () => { setPhoto(null); setBc(null); setErr(null); setCode(""); setGrams("100"); setScanning(false); setBusy(false); };
+  const reset = () => { setPhoto(null); setBc(null); setErr(null); setCode(""); setGrams("100"); setScanning(false); setBusy(false); setItemGrams({}); };
 
   useEffect(() => {
     if (photo || bc) resultRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -441,8 +444,9 @@ function ScanScreen({ day }: { day: Day }) {
     try {
       const r = await analyzeFoodPhoto(file);
       setPhoto(r);
-      const n = Math.max(r.items?.length ?? 0, 1);
-      setChecked(new Set(Array.from({ length: n }, (_, i) => i)));
+      const list = r.items?.length ? r.items : [{ grams: r.grams }];
+      setChecked(new Set(list.map((_, i) => i)));
+      setItemGrams(Object.fromEntries(list.map((it, i) => [i, String(Math.round(it.grams ?? 0))])));
     } catch (x) {
       setErr(x instanceof Error ? x.message : "Analyse impossible. Réessaie.");
     } finally {
@@ -478,13 +482,21 @@ function ScanScreen({ day }: { day: Day }) {
     ? (photo.items?.length ? photo.items : [{ name: photo.name, grams: photo.grams, kcal: photo.kcal, protein: photo.protein, carbs: photo.carbs, fat: photo.fat }])
     : [];
   const toggle = (i: number) => setChecked((p) => { const n = new Set(p); n.has(i) ? n.delete(i) : n.add(i); return n; });
+  const scaleItem = (it: { grams: number; kcal: number; protein?: number; carbs?: number; fat?: number }, i: number) => {
+    const base = it.grams > 0 ? it.grams : 1;
+    const g = parseFloat(itemGrams[i] ?? String(Math.round(it.grams))) || 0;
+    const f = g / base;
+    return { g, kcal: Math.round(it.kcal * f), p: Math.round((it.protein ?? 0) * f), c: Math.round((it.carbs ?? 0) * f), fat: Math.round((it.fat ?? 0) * f) };
+  };
   const addPhotoItems = async () => {
     if (!photo || checked.size === 0) return;
     setBusy(true);
     for (const i of checked) {
       const it = photoItems[i];
       if (!it) continue;
-      await day.addEntry({ meal_type: meal, name: it.name, qty: `${Math.round(it.grams)} g`, kcal: it.kcal, protein: it.protein ?? 0, carbs: it.carbs ?? 0, fat: it.fat ?? 0 });
+      const v = scaleItem(it, i);
+      if (v.g <= 0) continue;
+      await day.addEntry({ meal_type: meal, name: it.name, qty: `${v.g} g`, kcal: v.kcal, protein: v.p, carbs: v.c, fat: v.fat });
     }
     reset();
   };
@@ -593,15 +605,20 @@ function ScanScreen({ day }: { day: Day }) {
           <div className={s.mealpick}>
             {MEAL_DEFS.map((m) => (<button key={m.key} className={meal === m.key ? s.on : ""} onClick={() => setMeal(m.key)}>{m.emoji} {m.name.split("-")[0].split(" ")[0]}</button>))}
           </div>
-          <div className={s.hintline}>Aliments détectés — décoche ce que tu n&apos;as pas mangé :</div>
+          <div className={s.hintline}>Décoche ce que tu n&apos;as pas mangé · ajuste les grammes :</div>
           <div className={s.itemlist}>
-            {photoItems.map((it, i) => (
-              <div key={i} className={`${s.fitem2} ${checked.has(i) ? "" : s.off}`} onClick={() => toggle(i)}>
-                <span className={s.cbox2}><Icon name="check" size={12} /></span>
-                <div className={s.iname}>{it.name}<small>{Math.round(it.grams)} g · {it.protein ?? 0}P {it.carbs ?? 0}G {it.fat ?? 0}L</small></div>
-                <div className={s.ikcal}>{it.kcal} kcal</div>
-              </div>
-            ))}
+            {photoItems.map((it, i) => {
+              const v = scaleItem(it, i);
+              return (
+                <div key={i} className={`${s.fitem2} ${checked.has(i) ? "" : s.off}`}>
+                  <span className={s.cbox2} onClick={() => toggle(i)}><Icon name="check" size={12} /></span>
+                  <div className={s.iname} onClick={() => toggle(i)}>{it.name}<small>{v.p}g P · {v.c}g G · {v.fat}g L</small></div>
+                  <input className={s.gin} type="number" inputMode="numeric" value={itemGrams[i] ?? String(Math.round(it.grams))} onChange={(e) => setItemGrams((p) => ({ ...p, [i]: e.target.value }))} />
+                  <span className={s.gu}>g</span>
+                  <div className={s.ikcal}>{v.kcal} kcal</div>
+                </div>
+              );
+            })}
           </div>
           <div className={s.scanbtns}>
             <button className={`${s.btn} ${s.ghost}`} onClick={reset}><Icon name="refresh" size={16} />Reprendre</button>
@@ -1209,7 +1226,7 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
 }
 
 /* ---------------- PROFIL (live + déconnexion) ---------------- */
-function ProfilScreen({ profile, email }: { profile: Profile | null; email: string }) {
+function ProfilScreen({ profile, email, go }: { profile: Profile | null; email: string; go: (t: Tab) => void }) {
   const { signOut } = useAuth();
   const name = profile?.display_name ?? "Utilisateur";
   const initials = (name[0] ?? "?").toUpperCase();
@@ -1235,6 +1252,11 @@ function ProfilScreen({ profile, email }: { profile: Profile | null; email: stri
         <ProfRow icon="target" label="Objectif calorique" val={profile?.calorie_target ? `${fr(profile.calorie_target)} kcal` : "—"} />
         {deficit ? <ProfRow icon="plus" label="Déficit quotidien" val={`−${fr(deficit)} kcal`} /> : null}
       </div>
+      <div className={s.sectionH} style={{ marginTop: 22 }}><h3>Social</h3></div>
+      <div className={`${s.plist} ${s.r} ${s.r4}`}>
+        <ProfRow icon="fit" label="Partage & proches" chevron onClick={() => go("partage")} />
+      </div>
+
       <div className={s.sectionH}><h3>Connexions santé <span className={s.demoflag}>BIENTÔT</span></h3></div>
       <div className={`${s.sync} ${s.r} ${s.r4}`}>
         <div className={s.synccard}><Icon name="heart" size={24} style={{ color: "var(--coral)" }} /><b>Apple Health</b><span style={{ color: "var(--txt-3)" }}>À venir</span></div>
@@ -1245,9 +1267,9 @@ function ProfilScreen({ profile, email }: { profile: Profile | null; email: stri
   );
 }
 
-function ProfRow({ icon, label, val, chevron }: { icon: IconName; label: string; val?: string; chevron?: boolean }) {
+function ProfRow({ icon, label, val, chevron, onClick }: { icon: IconName; label: string; val?: string; chevron?: boolean; onClick?: () => void }) {
   return (
-    <div className={s.prow}>
+    <div className={s.prow} onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
       <div className={s.pic}><Icon name={icon} size={17} /></div>{label}
       {val && <span className={s.val}>{val}</span>}
       {chevron && <span className={s.ch}>›</span>}
@@ -1381,5 +1403,165 @@ function ProgressScreen({ profile, back }: { profile: Profile | null; back: () =
       </div>
       <button className={`${s.addphoto} ${s.r} ${s.r5}`}><Icon name="plus" size={16} /> Ajouter une photo ce mois-ci</button>
     </>
+  );
+}
+
+/* ---------------- PARTAGE ENTRE UTILISATEURS ---------------- */
+function PartageScreen({ back }: { back: () => void }) {
+  const { user } = useAuth();
+  const myId = user?.id ?? "";
+  const myEmail = (user?.email ?? "").toLowerCase();
+  const [conns, setConns] = useState<Connection[]>([]);
+  const [email, setEmail] = useState("");
+  const [cats, setCats] = useState<ShareCat[]>([...ALL_CATS]);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [view, setView] = useState<Connection | null>(null);
+
+  const load = useCallback(async () => { setConns(await loadConnections()); }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const toggleCat = (c: ShareCat) => setCats((p) => (p.includes(c) ? p.filter((x) => x !== c) : [...p, c]));
+  const invite = async () => {
+    if (!email.trim() || !myId) return;
+    if (email.trim().toLowerCase() === myEmail) { setMsg("C'est ta propre adresse 🙂"); return; }
+    const err = await sendInvite(myId, myEmail, email, cats);
+    setMsg(err ? "Erreur : " + err : "Invitation envoyée ✓");
+    if (!err) setEmail("");
+    await load();
+  };
+
+  const received = conns.filter((c) => c.status === "pending" && c.requester_id !== myId && (c.addressee_id === myId || c.addressee_email === myEmail));
+  const sent = conns.filter((c) => c.status === "pending" && c.requester_id === myId);
+  const accepted = conns.filter((c) => c.status === "accepted");
+  const otherEmail = (c: Connection) => (c.requester_id === myId ? c.addressee_email : c.requester_email);
+  const otherId = (c: Connection) => (c.requester_id === myId ? c.addressee_id : c.requester_id);
+  const theirCats = (c: Connection) => (c.requester_id === myId ? c.addressee_categories : c.requester_categories) as ShareCat[];
+
+  const accept = async (c: Connection) => { await acceptInvite(c.id, myId, [...ALL_CATS]); await load(); };
+  const remove = async (c: Connection) => { await removeConnection(c.id); await load(); };
+
+  const Av = ({ e }: { e: string }) => <div className={s.av2}>{(e[0] ?? "?").toUpperCase()}</div>;
+
+  return (
+    <>
+      <div className={`${s.subhead} ${s.r} ${s.r1}`}>
+        <button className={s.backbtn} onClick={back} aria-label="Retour"><Icon name="arrowLeft" size={18} /></button>
+        <div><div className={s.hi}>Partage mutuel, par email</div><h2>Partage</h2></div>
+      </div>
+
+      <div className={`${s.invcard} ${s.r} ${s.r2}`}>
+        <div className={s.il}>Inviter un proche</div>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@proche.com" />
+        <div className={s.catrow}>
+          {ALL_CATS.map((c) => (
+            <span key={c} className={`${s.catchip} ${cats.includes(c) ? s.on : ""}`} onClick={() => toggleCat(c)}>
+              {cats.includes(c) && <Icon name="check" size={13} />}{SHARE_LABELS[c]}
+            </span>
+          ))}
+        </div>
+        <button className={s.savebtn} onClick={invite} disabled={!email.trim()}>Envoyer l&apos;invitation</button>
+        {msg && <div className={s.invmsg}>{msg}</div>}
+      </div>
+
+      {received.length > 0 && (
+        <div className={`${s.r} ${s.r3}`}>
+          <div className={s.psect}>Demandes reçues</div>
+          {received.map((c) => (
+            <div key={c.id} className={s.connrow}>
+              <Av e={c.requester_email} />
+              <div className={s.ce}><b>{c.requester_email}</b><span>veut partager avec toi</span></div>
+              <div className={s.ca}>
+                <button className={`${s.cbtn2} ${s.acc}`} onClick={() => accept(c)}>Accepter</button>
+                <button className={`${s.cbtn2} ${s.dec}`} onClick={() => remove(c)}>Refuser</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {accepted.length > 0 && (
+        <div className={`${s.r} ${s.r3}`}>
+          <div className={s.psect}>Mes partages</div>
+          {accepted.map((c) => (
+            <div key={c.id} className={s.connrow}>
+              <Av e={otherEmail(c)} />
+              <div className={s.ce}><b>{otherEmail(c)}</b><span>{theirCats(c).map((x) => SHARE_LABELS[x].split(" ")[0]).join(" · ") || "rien partagé"}</span></div>
+              <div className={s.ca}>
+                {otherId(c) && <button className={`${s.cbtn2} ${s.viewb}`} onClick={() => setView(c)}>Voir</button>}
+                <button className={`${s.cbtn2} ${s.dec}`} onClick={() => remove(c)}>✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {sent.length > 0 && (
+        <div className={`${s.r} ${s.r4}`}>
+          <div className={s.psect}>Invitations envoyées</div>
+          {sent.map((c) => (
+            <div key={c.id} className={s.connrow}>
+              <Av e={c.addressee_email} />
+              <div className={s.ce}><b>{c.addressee_email}</b><span>en attente de validation</span></div>
+              <div className={s.ca}><button className={`${s.cbtn2} ${s.dec}`} onClick={() => remove(c)}>Annuler</button></div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {received.length === 0 && accepted.length === 0 && sent.length === 0 && (
+        <div className={s.pempty}>Aucun partage pour l&apos;instant. Invite un proche par email ci-dessus — il devra accepter pour que vous voyiez vos données mutuellement.</div>
+      )}
+
+      {view && otherId(view) && <SharedDataModal otherId={otherId(view)!} otherEmail={otherEmail(view)} cats={theirCats(view)} onClose={() => setView(null)} />}
+    </>
+  );
+}
+
+function SharedDataModal({ otherId, otherEmail, cats, onClose }: { otherId: string; otherEmail: string; cats: ShareCat[]; onClose: () => void }) {
+  const [data, setData] = useState<SharedData | null>(null);
+  useEffect(() => { loadSharedData(otherId).then(setData); }, [otherId]);
+  const lastW = data && data.weights.length ? data.weights[data.weights.length - 1].weight_kg : null;
+  const firstW = data && data.weights.length ? data.weights[0].weight_kg : null;
+  const lost = lastW != null && firstW != null ? +(firstW - lastW).toFixed(1) : null;
+  const sleep = data ? (data.sleepMin > 0 ? `${Math.floor(data.sleepMin / 60)}h${String(data.sleepMin % 60).padStart(2, "0")}` : "—") : "—";
+
+  return (
+    <div className={s.modalwrap} onClick={onClose}>
+      <div className={`${s.sheet} ${s.rsheet}`} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}><span className={s.x} onClick={onClose}>✕</span></div>
+        <div className={s.sdhead}>
+          <div className={s.av2}>{(otherEmail[0] ?? "?").toUpperCase()}</div>
+          <div><b>{otherEmail}</b><div className={s.sl}>Données partagées avec toi</div></div>
+        </div>
+        {!data ? (
+          <div className={s.explload}><div className={s.gsp} />Chargement…</div>
+        ) : (
+          <>
+            {cats.includes("poids") && (
+              <>
+                <div className={s.sdsec}>Poids & évolution</div>
+                {lastW != null ? (
+                  <div className={s.sdrow}><span className={s.sl}>Poids actuel{lost != null && lost > 0 ? ` · −${lost} kg` : ""}</span><b>{lastW} kg</b></div>
+                ) : <div className={s.pempty}>Pas encore de pesée.</div>}
+              </>
+            )}
+            {cats.includes("pas") && (
+              <>
+                <div className={s.sdsec}>Activité du jour</div>
+                <div className={s.sdrow}><span className={s.sl}>Pas aujourd&apos;hui</span><b>{fr(data.steps)}</b></div>
+                <div className={s.sdrow}><span className={s.sl}>Sommeil</span><b>{sleep}</b></div>
+              </>
+            )}
+            {cats.includes("courses") && (
+              <>
+                <div className={s.sdsec}>Liste de courses</div>
+                {data.buy.length ? data.buy.map((b, i) => <div key={i} className={s.sdrow}><span>{b.name}</span><span className={s.sl}>{b.category}</span></div>) : <div className={s.pempty}>Rien à acheter pour l&apos;instant.</div>}
+              </>
+            )}
+            {cats.length === 0 && <div className={s.pempty}>Cette personne ne partage aucune donnée pour l&apos;instant.</div>}
+          </>
+        )}
+      </div>
+    </div>
   );
 }
