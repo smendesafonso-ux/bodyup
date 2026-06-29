@@ -63,6 +63,28 @@ styles/
 - **Typographie** : Clash Display (affichage) + Hanken Grotesk (corps).
 - Tous les tokens sont des variables CSS dans `app/globals.css`.
 
+## Déploiement (GitHub Pages, sans backend)
+
+Le projet est exporté en site **100% statique** (`output: "export"` → dossier `out/`)
+et déployé automatiquement sur **GitHub Pages** via GitHub Actions
+(`.github/workflows/deploy.yml`) à chaque `push` sur `main`.
+
+URL de production : **https://smendesafonso-ux.github.io/bodyup/**
+
+Activation (une seule fois) : repo GitHub → **Settings → Pages → Build and deployment
+→ Source : GitHub Actions**.
+
+Build statique en local :
+
+```bash
+$env:GITHUB_PAGES="true"; npm run build   # PowerShell
+# le site prêt à héberger est dans out/
+```
+
+> `basePath`/`assetPrefix` valent `/bodyup` uniquement quand `GITHUB_PAGES=true`,
+> pour que les assets se résolvent sous le sous-chemin de Pages. En local (`npm run dev`)
+> le site reste servi à la racine.
+
 ## À brancher pour la prod
 
 - Auth (Apple / Google / Email) + Supabase (PostgreSQL)
