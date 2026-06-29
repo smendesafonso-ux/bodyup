@@ -13,7 +13,8 @@ import { searchFoods, lookupBarcode, type FoodHit } from "@/lib/foods";
 import { analyzeFoodPhoto, type FoodAnalysis } from "@/lib/vision";
 import { suggestMeals, type AiMeal } from "@/lib/meals";
 import type { Profile } from "@/lib/supabase";
-import { workouts, coachThread, coachChips, badges, shoppingList, progressTimeline } from "@/lib/data";
+import { coachThread, coachChips, badges, shoppingList, progressTimeline } from "@/lib/data";
+import { exercises, intensityClass, type Exercise, type Intensity } from "@/lib/exercises";
 
 type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil" | "courses" | "progress";
 type Day = ReturnType<typeof useDay>;
@@ -609,13 +610,24 @@ function ScanScreen({ day }: { day: Day }) {
   );
 }
 
-/* ---------------- EXERCICES (live : ajoute des kcal brûlées) ---------------- */
+/* ---------------- EXERCICES (bibliothèque + filtres + minuteur) ---------------- */
+const exoTint = (i: Intensity) => i === "doux" ? "rgba(201,255,60,.12)" : i === "modéré" ? "rgba(255,194,75,.12)" : "rgba(255,122,83,.12)";
+const bandOf = (m: number) => (m <= 8 ? "court" : m <= 15 ? "moyen" : "long");
+
 function ExoScreen({ day, target }: { day: Day; target: number }) {
-  const delay = [s.r3, s.r4, s.r5];
+  const [intensity, setIntensity] = useState<"all" | Intensity>("all");
+  const [band, setBand] = useState<"all" | "court" | "moyen" | "long">("all");
+  const [sel, setSel] = useState<Exercise | null>(null);
   const remaining = target - day.consumed + day.burned;
+
+  const list = exercises.filter((e) => (intensity === "all" || e.intensity === intensity) && (band === "all" || bandOf(e.defaultMin) === band));
+  const intF: [string, string][] = [["all", "Toutes"], ["doux", "Doux"], ["modéré", "Modéré"], ["intense", "Intense"]];
+  const timeF: [string, string][] = [["all", "Toutes"], ["court", "≤ 8 min"], ["moyen", "10–15 min"], ["long", "20 min +"]];
+
   return (
     <>
       <div className={`${s.phead} ${s.r} ${s.r1}`}><div><div className={s.hi}>À la maison · Sans matériel</div><h2>Exercices</h2></div></div>
+
       <div className={`${s.budget} ${s.r} ${s.r2}`}>
         <div className={s.l}>Budget calorique en direct</div>
         <div className={s.calc}>
@@ -623,22 +635,102 @@ function ExoScreen({ day, target }: { day: Day; target: number }) {
           <span style={{ color: "var(--lime)" }}>{fr(day.burned)}</span><span className={s.op}>=</span><span className={s.res}>{fr(remaining)} kcal</span>
         </div>
       </div>
-      <div className={`${s.sectionH} ${s.r} ${s.r3}`} style={{ marginTop: 18 }}><h3>Séances rapides</h3><a>Terminer → +kcal</a></div>
-      {workouts.map((w, i) => (
-        <div key={w.name} className={`${s.workout} ${s.r} ${delay[i]}`}>
-          <div className={s.ph} style={{ background: w.tint }}>{w.emoji}</div>
+
+      <div className={`${s.exfilters} ${s.r} ${s.r3}`} style={{ marginTop: 16 }}>
+        <div className={s.eflabel}>Intensité</div>
+        <div className={s.exfrow}>{intF.map(([v, l]) => <span key={v} className={`${s.ef} ${intensity === v ? s.on : ""}`} onClick={() => setIntensity(v as "all" | Intensity)}>{l}</span>)}</div>
+        <div className={s.eflabel}>Durée</div>
+        <div className={s.exfrow}>{timeF.map(([v, l]) => <span key={v} className={`${s.ef} ${band === v ? s.on : ""}`} onClick={() => setBand(v as "all" | "court" | "moyen" | "long")}>{l}</span>)}</div>
+      </div>
+      <div className={s.excount}>{list.length} exercice{list.length > 1 ? "s" : ""}</div>
+
+      {list.map((e) => (
+        <div key={e.id} className={`${s.workout} ${s.r}`} style={{ cursor: "pointer" }} onClick={() => setSel(e)}>
+          <div className={s.ph} style={{ background: exoTint(e.intensity) }}>{e.emoji}</div>
           <div className={s.info}>
-            <b>{w.name}</b>
+            <b>{e.name}</b>
             <div className={s.row}>
-              <span><Icon name="clock" size={13} />{w.dur}</span>
-              <span><Icon name="flameLine" size={13} />{w.kcal} kcal</span>
+              <span><Icon name="clock" size={13} />{e.defaultMin} min</span>
+              <span><Icon name="flameLine" size={13} />{Math.round(e.kcalPerMin * e.defaultMin)} kcal</span>
             </div>
-            <span className={`${s.diff} ${s[w.diffClass]}`}>{w.diff}</span>
+            <span className={`${s.diff} ${s[intensityClass[e.intensity]]}`}>{e.category} · {e.intensity}</span>
           </div>
-          <button className={s.play} onClick={() => day.addWorkout(w.name, w.kcal)} aria-label="Terminer la séance"><Icon name="check" size={18} /></button>
+          <button className={s.play} onClick={(ev) => { ev.stopPropagation(); setSel(e); }} aria-label="Voir l'exercice"><Icon name="play" size={18} /></button>
         </div>
       ))}
+
+      {sel && <ExerciseDetail ex={sel} day={day} onClose={() => setSel(null)} />}
     </>
+  );
+}
+
+function ExerciseDetail({ ex, day, onClose }: { ex: Exercise; day: Day; onClose: () => void }) {
+  const [minutes, setMinutes] = useState(ex.defaultMin);
+  const [secs, setSecs] = useState(ex.defaultMin * 60);
+  const [running, setRunning] = useState(false);
+  const [logged, setLogged] = useState(false);
+
+  useEffect(() => { if (!running) setSecs(minutes * 60); }, [minutes, running]);
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => setSecs((x) => Math.max(x - 1, 0)), 1000);
+    return () => clearInterval(id);
+  }, [running]);
+  useEffect(() => { if (running && secs === 0) setRunning(false); }, [secs, running]);
+
+  const kcal = Math.round(ex.kcalPerMin * minutes);
+  const total = minutes * 60;
+  const done = secs === 0;
+  const C = 452.4;
+  const pct = total ? (total - secs) / total : 0;
+  const mm = Math.floor(secs / 60);
+  const ss = secs % 60;
+
+  const log = async () => { await day.addWorkout(ex.name, kcal); setLogged(true); setRunning(false); };
+
+  return (
+    <div className={s.modalwrap} onClick={onClose}>
+      <div className={`${s.sheet} ${s.rsheet}`} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}><span className={s.x} onClick={onClose}>✕</span></div>
+        <div className={s.exhero}>
+          <div className={s.orb}>{ex.emoji}</div>
+          <h3>{ex.name}</h3>
+          <span className={`${s.diff} ${s[intensityClass[ex.intensity]]}`}>{ex.category} · {ex.intensity}</span>
+          <p className={s.exd}>{ex.desc}</p>
+        </div>
+        <div className={s.mtags}>{ex.muscles.map((m) => <span key={m}>{m}</span>)}</div>
+
+        <div className={s.tring}>
+          <svg width="172" height="172" viewBox="0 0 172 172">
+            <circle cx="86" cy="86" r="72" fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="13" />
+            <circle cx="86" cy="86" r="72" fill="none" stroke="var(--lime)" strokeWidth="13" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - pct)} style={{ transform: "rotate(-90deg)", transformOrigin: "center", transition: "stroke-dashoffset 1s linear" }} />
+          </svg>
+          <div className={s.mid}><span className={s.tt}>{mm}:{String(ss).padStart(2, "0")}</span><span className={s.tl}>{kcal} kcal</span></div>
+        </div>
+
+        <div className={s.durrow}>
+          <input type="range" min={1} max={60} value={minutes} onChange={(e) => setMinutes(+e.target.value)} disabled={running} style={{ flex: 1 }} />
+          <span className={s.dv}>{minutes} <small>min</small></span>
+        </div>
+
+        <div className={s.tctrl}>
+          {!running ? (
+            <button className={`${s.tbtn} ${s.go}`} onClick={() => { if (done) setSecs(minutes * 60); setRunning(true); setLogged(false); }}><Icon name="play" size={16} />{done ? "Recommencer" : "Démarrer"}</button>
+          ) : (
+            <button className={s.tbtn} onClick={() => setRunning(false)}><Icon name="clock" size={16} />Pause</button>
+          )}
+          <button className={s.tbtn} onClick={() => { setRunning(false); setSecs(minutes * 60); }}><Icon name="refresh" size={16} />Réinit.</button>
+        </div>
+
+        {logged && <div className={s.exdone}><Icon name="check" size={18} />Séance ajoutée · +{kcal} kcal à ton budget</div>}
+        <button className={s.savebtn} onClick={log} disabled={logged}>{logged ? "Ajouté ✓" : `J'ai terminé · +${kcal} kcal`}</button>
+
+        <div className={s.rsec}>Comment faire</div>
+        <ol className={s.rsteps}>{ex.steps.map((x, i) => <li key={i}>{x}</li>)}</ol>
+        <div className={s.rsec}>Conseil</div>
+        <p className={s.steps} style={{ borderLeftColor: "var(--lime)", marginBottom: 4 }}>{ex.tip}</p>
+      </div>
+    </div>
   );
 }
 
