@@ -12,7 +12,7 @@ export interface AiMeal {
   time: number;
   tag: string;
   ingredients: string[];
-  steps: string;
+  steps: string[] | string; // tableau d'étapes (ancien format: chaîne)
 }
 
 export interface SuggestParams {

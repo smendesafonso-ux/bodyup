@@ -32,8 +32,8 @@ const schema = {
           fat: { type: "integer" },
           time: { type: "integer", description: "Temps de préparation en minutes" },
           tag: { type: "string", description: "Court atout, ex: Riche en protéines" },
-          ingredients: { type: "array", items: { type: "string" } },
-          steps: { type: "string", description: "Préparation en 1–2 phrases" },
+          ingredients: { type: "array", items: { type: "string" }, description: "Ingrédients AVEC quantités, ex: '150 g de poulet'" },
+          steps: { type: "array", items: { type: "string" }, description: "Étapes de préparation claires, une par élément" },
         },
         required: ["name", "emoji", "kcal", "protein", "carbs", "fat", "time", "tag", "ingredients", "steps"],
       },
@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
     const prompt = `Tu es un nutritionniste. Propose ${count} idées de "${mealType}" en français, adaptées au profil et qui se rapprochent AU MIEUX de ce qu'il reste à consommer aujourd'hui.
 Reste à consommer : ~${Math.round(r.kcal ?? 0)} kcal, ${Math.round(r.protein ?? 0)} g protéines, ${Math.round(r.carbs ?? 0)} g glucides, ${Math.round(r.fat ?? 0)} g lipides.
 Objectif de l'utilisateur : ${goal}. Régime : ${diet}. À EXCLURE absolument (allergies/intolérances) : ${allergies.length ? allergies.join(", ") : "aucune"}.
-Pour chaque repas, vise des valeurs proches des macros restantes (sans forcément les dépasser), donne un emoji pertinent, les kcal et macros, le temps de préparation, un atout court (tag), une liste d'ingrédients simple et une préparation en 1–2 phrases. Recettes réalistes et faciles.`;
+Pour chaque repas, vise des valeurs proches des macros restantes (sans forcément les dépasser), donne un emoji pertinent, les kcal et macros, le temps de préparation, un atout court (tag), la liste des ingrédients AVEC leurs quantités (ex : "150 g de poulet", "1 c. à soupe d'huile d'olive") et les étapes de préparation détaillées (tableau "steps", une étape claire par élément). Recettes réalistes et faciles à suivre.`;
 
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

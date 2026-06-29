@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import s from "@/styles/mobile.module.css";
 import { Icon, type IconName } from "./Icon";
 import { CalorieRing } from "./CalorieRing";
 import { fr } from "@/lib/nutrition";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import { useDay, type NewFood } from "@/lib/useDay";
 import { searchFoods, lookupBarcode, type FoodHit } from "@/lib/foods";
 import { analyzeFoodPhoto, type FoodAnalysis } from "@/lib/vision";
@@ -86,7 +87,7 @@ export default function MobileApp() {
               {tab === "scan" && <ScanScreen day={day} />}
               {tab === "exo" && <ExoScreen day={day} target={target} />}
               {tab === "coach" && <CoachScreen />}
-              {tab === "stats" && <StatsScreen profile={profile} go={setTab} />}
+              {tab === "stats" && <StatsScreen profile={profile} day={day} go={setTab} />}
               {tab === "profil" && <ProfilScreen profile={profile} email={user?.email ?? ""} />}
               {tab === "courses" && <CoursesScreen back={() => setTab("repas")} />}
               {tab === "progress" && <ProgressScreen profile={profile} back={() => setTab("stats")} />}
@@ -647,14 +648,49 @@ const MEAL_TABS = [
   { label: "Déjeuner", key: "dejeuner" }, { label: "Collation", key: "collation" },
 ] as const;
 
+function RecipeModal({ meal, added, onClose, onAdd, onCart }: { meal: AiMeal; added: boolean; onClose: () => void; onAdd: () => void; onCart: () => void }) {
+  const steps = Array.isArray(meal.steps) ? meal.steps : [meal.steps];
+  return (
+    <div className={s.modalwrap} onClick={onClose}>
+      <div className={`${s.sheet} ${s.rsheet}`} onClick={(e) => e.stopPropagation()}>
+        <div className={s.rh}>
+          <div className={s.em}>{meal.emoji || "🍽️"}</div>
+          <div><h3>{meal.name}</h3><span>{meal.time} min · {meal.kcal} kcal · {meal.tag}</span></div>
+          <span className={s.x} onClick={onClose} style={{ marginLeft: "auto" }}>✕</span>
+        </div>
+        <div className={s.nrow}>
+          <div className={s.ncell}><b>{meal.kcal}</b><span>kcal</span></div>
+          <div className={s.ncell}><b>{meal.protein}g</b><span>prot</span></div>
+          <div className={s.ncell}><b>{meal.carbs}g</b><span>gluc</span></div>
+          <div className={s.ncell}><b>{meal.fat}g</b><span>lip</span></div>
+        </div>
+        <div className={s.rsec}>Ingrédients</div>
+        <ul className={s.ringlist}>{meal.ingredients.map((x, i) => <li key={i}>{x}</li>)}</ul>
+        <div className={s.rsec}>Préparation</div>
+        <ol className={s.rsteps}>{steps.map((x, i) => <li key={i}>{x}</li>)}</ol>
+        <div className={s.scanbtns} style={{ marginTop: 18 }}>
+          <button className={`${s.btn} ${s.ghost}`} onClick={onCart}><Icon name="cart" size={16} />Courses</button>
+          <button className={`${s.btn} ${s.prim}`} onClick={onAdd}><Icon name={added ? "check" : "plus"} size={16} />{added ? "Ajouté" : "Au journal"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile | null; target: number; go: (t: Tab) => void }) {
   const [mi, setMi] = useState(0);
   const [meals, setMeals] = useState<AiMeal[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [added, setAdded] = useState<Record<string, boolean>>({});
+  const [detail, setDetail] = useState<AiMeal | null>(null);
 
   const goals = macroGoals(target);
+
+  const addMeal = async (m: AiMeal) => {
+    await day.addEntry({ meal_type: MEAL_TABS[mi].key, name: m.name, qty: "1 portion", kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat });
+    setAdded((a) => ({ ...a, [m.name]: true }));
+  };
   const remaining = {
     kcal: Math.max(target - day.consumed + day.burned, 0),
     protein: Math.max(goals.p - day.macros.p, 0),
@@ -702,7 +738,7 @@ function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile 
       {err && <div className={`${s.scanerr} ${s.r}`}>{err}</div>}
 
       {meals.map((m, i) => (
-        <div key={i} className={`${s.recipe} ${s.r}`}>
+        <div key={i} className={`${s.recipe} ${s.r}`} style={{ cursor: "pointer" }} onClick={() => setDetail(m)}>
           <div className={s.img} style={{ background: "linear-gradient(140deg,rgba(183,155,255,.18),rgba(91,209,255,.1))" }}>{m.emoji || "🍽️"}
             <span className={s.badge}><Icon name="spark" size={11} />Généré par IA</span>
           </div>
@@ -718,13 +754,9 @@ function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile 
               <div className={s.mm}><b>{m.carbs}g</b><span>Gluc</span></div>
               <div className={s.mm}><b>{m.fat}g</b><span>Lip</span></div>
             </div>
-            {m.ingredients?.length ? <div className={s.ingreds}>{m.ingredients.map((ing, k) => <span key={k}>{ing}</span>)}</div> : null}
-            {m.steps ? <div className={s.steps}>{m.steps}</div> : null}
-            <div className={s.acts}>
-              <button className={s.add} onClick={async () => {
-                await day.addEntry({ meal_type: MEAL_TABS[mi].key, name: m.name, qty: "1 portion", kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat });
-                setAdded((a) => ({ ...a, [m.name]: true }));
-              }}>
+            <div className={s.seemore}><Icon name="arrowRight" size={14} />Voir la recette détaillée</div>
+            <div className={s.acts} onClick={(e) => e.stopPropagation()}>
+              <button className={s.add} onClick={() => addMeal(m)}>
                 <Icon name={added[m.name] ? "check" : "plus"} size={15} />{added[m.name] ? "Ajouté" : "Au journal"}
               </button>
               <button className={s.cartbtn} onClick={() => go("courses")} aria-label="Ajouter aux courses"><Icon name="cart" size={16} /></button>
@@ -732,6 +764,16 @@ function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile 
           </div>
         </div>
       ))}
+
+      {detail && (
+        <RecipeModal
+          meal={detail}
+          added={!!added[detail.name]}
+          onClose={() => setDetail(null)}
+          onAdd={async () => { await addMeal(detail); }}
+          onCart={() => { setDetail(null); go("courses"); }}
+        />
+      )}
     </>
   );
 }
@@ -802,36 +844,100 @@ function CoachScreen() {
   );
 }
 
-/* ---------------- STATS (démo visuelle) ---------------- */
-function StatsScreen({ profile, go }: { profile: Profile | null; go: (t: Tab) => void }) {
-  const week = [55, 70, 48, 85, 30, 92, 78];
-  const labels = ["L", "M", "M", "J", "V", "S", "D"];
-  const lost = profile?.weight_kg && profile?.target_kg ? (profile.weight_kg - profile.target_kg).toFixed(1) : "—";
+/* ---------------- STATS (données réelles) ---------------- */
+function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; go: (t: Tab) => void }) {
+  const { user, refreshProfile } = useAuth();
+  const [weights, setWeights] = useState<{ date: string; weight_kg: number }[]>([]);
+  const [editW, setEditW] = useState(false);
+  const [wval, setWval] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const loadW = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase.from("weight_logs").select("date,weight_kg").eq("user_id", user.id).order("date", { ascending: true }).limit(90);
+    setWeights((data as { date: string; weight_kg: number }[]) ?? []);
+  }, [user]);
+  useEffect(() => { loadW(); }, [loadW]);
+
+  const ws = weights.map((w) => Number(w.weight_kg));
+  const currentW = ws.length ? ws[ws.length - 1] : profile?.weight_kg ?? null;
+  const startW = ws.length ? ws[0] : null;
+  const lost = startW != null && currentW != null ? +(startW - currentW).toFixed(1) : null;
+  const target = profile?.calorie_target ?? 2000;
+  const remaining = target - day.consumed + day.burned;
+  const deficit = profile?.tdee != null ? profile.tdee - day.consumed + day.burned : null;
+
+  const min = ws.length ? Math.min(...ws) : 0;
+  const max = ws.length ? Math.max(...ws) : 1;
+  const range = max - min || 1;
+  const pts = ws.map((w, i) => { const x = ws.length > 1 ? (i / (ws.length - 1)) * 100 : 50; const y = 92 - ((w - min) / range) * 84; return `${x.toFixed(1)},${y.toFixed(1)}`; }).join(" ");
+
+  const saveWeight = async () => {
+    const v = parseFloat(wval);
+    if (!v || !user) return;
+    setBusy(true);
+    await supabase.from("weight_logs").insert({ user_id: user.id, weight_kg: v });
+    await supabase.from("profiles").update({ weight_kg: v, updated_at: new Date().toISOString() }).eq("id", user.id);
+    setBusy(false); setEditW(false); setWval("");
+    await loadW(); await refreshProfile();
+  };
+
   return (
     <>
       <div className={`${s.phead} ${s.r} ${s.r1}`}>
-        <div><div className={s.hi}>7 derniers jours</div><h2>Statistiques</h2></div>
+        <div><div className={s.hi}>Ta progression</div><h2>Statistiques</h2></div>
         <button className={s.headact} onClick={() => go("progress")} aria-label="Photos de progression"><Icon name="camera" /></button>
       </div>
+
       <div className={`${s.kpibig} ${s.r} ${s.r2}`}>
-        <div className={s.l}>Écart jusqu&apos;à ta cible</div>
-        <div className={s.v}>{lost} <small>kg à perdre</small></div>
-        <div className={s.weekbars}>
-          {week.map((h, i) => (
-            <div key={i} className={`${s.wb} ${i === 4 ? s.miss : ""}`}><div className={s.col} style={{ height: `${h}%` }} /><div className={s.dl}>{labels[i]}</div></div>
-          ))}
+        <div className={s.wsum}>
+          <div>
+            <div className={s.l}>Poids actuel{lost != null && lost > 0 ? <span className={`${s.wdelta} ${s.up}`} style={{ marginLeft: 8 }}>−{lost} kg</span> : null}</div>
+            <div className={s.wbig}>{currentW != null ? currentW : "—"} <small>kg · cible {profile?.target_kg ?? "—"} kg</small></div>
+          </div>
+          <button className={s.wlog} onClick={() => { setWval(currentW != null ? String(currentW) : ""); setEditW(true); }}>+ Poids</button>
         </div>
+        {ws.length >= 2 ? (
+          <div className={s.wtrend}>
+            <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+              <polyline points={pts} fill="none" stroke="var(--lime)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+            </svg>
+          </div>
+        ) : (
+          <div className={s.wempty}>Enregistre ton poids régulièrement (bouton « + Poids ») pour voir ta tendance ici.</div>
+        )}
       </div>
+
       <div className={`${s.kgrid} ${s.r} ${s.r3}`}>
+        <Metric icon="clock" tint="rgba(91,209,255,.12)" color="var(--sky)" v={fr(Math.max(remaining, 0))} unit=" kcal" k="Restantes aujourd'hui" />
+        <Metric icon="flameLine" tint="rgba(255,122,83,.12)" color="var(--coral)" v={fr(day.burned)} unit=" kcal" k="Brûlées aujourd'hui" />
         <Metric icon="check" tint="rgba(201,255,60,.12)" color="var(--lime)" v={profile?.calorie_target ? fr(profile.calorie_target) : "—"} unit=" kcal" k="Objectif quotidien" />
+        <Metric icon="trend" tint="rgba(183,155,255,.12)" color="var(--violet)" v={deficit != null ? `${deficit >= 0 ? "−" : "+"}${fr(Math.abs(deficit))}` : "—"} unit=" kcal" k="Déficit du jour" />
         <Metric icon="trend" tint="rgba(255,194,75,.12)" color="var(--amber)" v={profile?.tdee ? fr(profile.tdee) : "—"} unit=" kcal" k="Dépense (TDEE)" />
-        <Metric icon="clock" tint="rgba(91,209,255,.12)" color="var(--sky)" v={profile?.bmr ? fr(profile.bmr) : "—"} unit=" kcal" k="Métabolisme (BMR)" />
-        <Metric icon="target" tint="rgba(183,155,255,.12)" color="var(--violet)" v={profile?.target_kg ? String(profile.target_kg) : "—"} unit=" kg" k="Poids cible" />
+        <Metric icon="bolt" tint="rgba(91,209,255,.12)" color="var(--sky)" v={(day.glasses * 0.25).toFixed(1)} unit=" L" k="Eau aujourd'hui" />
       </div>
-      <div className={`${s.sectionH} ${s.r} ${s.r4}`}><h3>Récompenses <span className={s.demoflag}>DÉMO</span></h3></div>
-      <div className={`${s.badgewrap} ${s.r} ${s.r4}`}>
+
+      <div className={`${s.healthcard} ${s.r} ${s.r4}`} onClick={() => go("profil")}>
+        <div className={s.ic}><Icon name="heart" /></div>
+        <div><b>Pas · sommeil · fréquence cardiaque</b><span>À connecter via Apple Santé / Google Fit</span></div>
+        <span className={s.ch}>›</span>
+      </div>
+
+      <div className={`${s.sectionH} ${s.r} ${s.r5}`}><h3>Récompenses <span className={s.demoflag}>DÉMO</span></h3></div>
+      <div className={`${s.badgewrap} ${s.r} ${s.r5}`}>
         {badges.map((b) => <div key={b.label} className={`${s.bdg} ${b.locked ? s.lock : ""}`}>{b.emoji}<span>{b.label}</span></div>)}
       </div>
+
+      {editW && (
+        <div className={s.modalwrap} onClick={() => setEditW(false)}>
+          <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
+            <h3>Mettre à jour mon poids <span className={s.x} onClick={() => setEditW(false)}>✕</span></h3>
+            <label>Poids (kg)</label>
+            <input className={s.inp} type="number" inputMode="decimal" value={wval} onChange={(e) => setWval(e.target.value)} placeholder="78.5" autoFocus />
+            <button className={s.savebtn} onClick={saveWeight} disabled={busy || !wval}>{busy ? "Enregistrement…" : "Enregistrer"}</button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

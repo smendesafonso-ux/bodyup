@@ -212,6 +212,20 @@
 .wb.miss .col{background:rgba(255,255,255,.1)}
 .wb .dl{font-size:11px;color:var(--txt-3);font-weight:600}
 .kgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.wsum{display:flex;justify-content:space-between;align-items:center}
+.wsum .wbig{font-family:var(--display);font-weight:600;font-size:30px;letter-spacing:-.02em}
+.wsum .wbig small{font-size:14px;color:var(--txt-2);font-weight:500;font-family:var(--body)}
+.wlog{border:none;border-radius:12px;background:var(--lime);color:#0a1400;font-family:var(--body);font-weight:600;font-size:13px;padding:9px 14px;cursor:pointer}
+.wtrend{height:120px;margin-top:14px;position:relative}
+.wtrend svg{width:100%;height:100%;overflow:visible}
+.wempty{font-size:13px;color:var(--txt-3);text-align:center;padding:24px 12px;line-height:1.5}
+.wdelta{font-size:13px;font-weight:600;padding:3px 9px;border-radius:100px}
+.healthcard{display:flex;align-items:center;gap:13px;background:linear-gradient(120deg,rgba(91,209,255,.08),rgba(255,255,255,.02));border:1px solid rgba(91,209,255,.18);border-radius:22px;padding:16px;margin-top:14px;cursor:pointer}
+.healthcard .ic{width:42px;height:42px;border-radius:14px;background:rgba(91,209,255,.14);display:grid;place-items:center;flex:0 0 auto}
+.healthcard .ic svg{width:22px;height:22px;color:var(--sky)}
+.healthcard b{font-family:var(--display);font-weight:600;font-size:15px;display:block}
+.healthcard span{font-size:12.5px;color:var(--txt-2)}
+.healthcard .ch{margin-left:auto;color:var(--txt-3)}
 
 .badgewrap{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-top:6px}
 .bdg{aspect-ratio:1;border-radius:20px;background:var(--card);border:1px solid var(--hair);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:26px}
@@ -305,6 +319,21 @@
 .ingreds{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:13px}
 .ingreds span{font-size:11.5px;color:var(--txt-2);background:var(--surface);border:1px solid var(--hair);border-radius:100px;padding:5px 10px}
 .steps{font-size:12.5px;color:var(--txt-2);line-height:1.5;margin-bottom:13px;border-left:2px solid var(--card-bd);padding-left:11px}
+.seemore{font-size:12.5px;color:var(--violet);font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:5px}
+/* fiche recette détaillée */
+.rsheet{max-height:84vh;overflow-y:auto;scrollbar-width:none}
+.rsheet::-webkit-scrollbar{display:none}
+.rh{display:flex;align-items:center;gap:13px;margin-bottom:16px}
+.rh .em{width:56px;height:56px;border-radius:17px;background:linear-gradient(140deg,rgba(183,155,255,.2),rgba(91,209,255,.12));display:grid;place-items:center;font-size:30px;flex:0 0 auto}
+.rh h3{font-family:var(--display);font-weight:600;font-size:20px;line-height:1.15}
+.rh span{font-size:12.5px;color:var(--txt-2);display:block;margin-top:3px}
+.rsec{font-family:var(--display);font-weight:600;font-size:15px;margin:18px 0 10px}
+.ringlist{display:flex;flex-direction:column;gap:8px;padding:0;margin:0}
+.ringlist li{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:var(--txt);list-style:none}
+.ringlist li::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--lime);margin-top:7px;flex:0 0 auto}
+.rsteps{display:flex;flex-direction:column;gap:12px;counter-reset:st;padding:0;margin:0}
+.rsteps li{display:flex;gap:12px;font-size:14px;line-height:1.55;color:var(--txt-2);list-style:none}
+.rsteps li::before{counter-increment:st;content:counter(st);width:25px;height:25px;border-radius:50%;background:rgba(201,255,60,.14);color:var(--lime);font-family:var(--display);font-weight:600;font-size:12px;display:grid;place-items:center;flex:0 0 auto}
 
 /* ---------- sub-screen header (back) ---------- */
 .subhead{display:flex;align-items:center;gap:13px;padding:8px 4px 18px}
