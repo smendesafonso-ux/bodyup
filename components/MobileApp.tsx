@@ -20,6 +20,7 @@ import { loadPantry, addPantryItem, addManyToBuy, setPantryStatus, removePantryI
 import { mealCategories, mealsByCategory, mealLookup, type MealLite, type MealFull } from "@/lib/themealdb";
 import { loadConnections, sendInvite, acceptInvite, removeConnection, loadSharedData, resolveUsername, setUsername, SHARE_LABELS, ALL_CATS, type Connection, type ShareCat, type SharedData } from "@/lib/social";
 import { loadStats, computePoints, levelFor, emojiForLevel, persistGamification, BADGES, type Stats } from "@/lib/gamification";
+import { recipes as libRecipes, aiPhoto, type LibRecipe } from "@/lib/recipes";
 
 type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil" | "courses" | "progress" | "partage";
 type Day = ReturnType<typeof useDay>;
@@ -777,10 +778,11 @@ function RecipeModal({ meal, added, userId, onClose, onAdd, onCart }: { meal: Ai
   return (
     <div className={s.modalwrap} onClick={onClose}>
       <div className={`${s.sheet} ${s.rsheet}`} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}><span className={s.x} onClick={onClose}>✕</span></div>
+        <img className={s.mphoto} src={aiPhoto(meal.name)} alt={meal.name} />
         <div className={s.rh}>
           <div className={s.em}>{meal.emoji || "🍽️"}</div>
           <div><h3>{meal.name}</h3><span>{meal.time} min · {meal.kcal} kcal · {meal.tag}</span></div>
-          <span className={s.x} onClick={onClose} style={{ marginLeft: "auto" }}>✕</span>
         </div>
         <div className={s.nrow}>
           <div className={s.ncell}><b>{meal.kcal}</b><span>kcal</span></div>
@@ -815,7 +817,7 @@ function RecipeModal({ meal, added, userId, onClose, onAdd, onCart }: { meal: Ai
 }
 
 function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile | null; target: number; go: (t: Tab) => void }) {
-  const [mode, setMode] = useState<"ia" | "explorer">("ia");
+  const [mode, setMode] = useState<"lib" | "ia" | "explorer">("lib");
   const [mi, setMi] = useState(0);
   const [meals, setMeals] = useState<AiMeal[]>([]);
   const [loading, setLoading] = useState(false);
@@ -869,11 +871,12 @@ function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile 
       </div>
 
       <div className={`${s.subtoggle} ${s.r} ${s.r2}`}>
-        <button className={mode === "ia" ? s.on : ""} onClick={() => setMode("ia")}><Icon name="spark" size={16} />Recettes IA</button>
-        <button className={mode === "explorer" ? s.on : ""} onClick={() => setMode("explorer")}><Icon name="meals" size={16} />Explorer</button>
+        <button className={mode === "lib" ? s.on : ""} onClick={() => setMode("lib")}><Icon name="meals" size={16} />Recettes</button>
+        <button className={mode === "ia" ? s.on : ""} onClick={() => setMode("ia")}><Icon name="spark" size={16} />IA</button>
+        <button className={mode === "explorer" ? s.on : ""} onClick={() => setMode("explorer")}><Icon name="search" size={16} />Explorer</button>
       </div>
 
-      {mode === "explorer" ? <Explorer go={go} /> : <>
+      {mode === "lib" ? <Library day={day} pantry={pantry} userId={user?.id} go={go} /> : mode === "explorer" ? <Explorer go={go} /> : <>
 
       <div className={`${s.mealtabs} ${s.r} ${s.r2}`}>
         {MEAL_TABS.map((t, i) => <div key={t.key} className={`${s.mtab} ${mi === i ? s.on : ""}`} onClick={() => { setMi(i); setMeals([]); setSeen([]); setErr(null); }}>{t.label}</div>)}
@@ -900,7 +903,8 @@ function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile 
 
       {meals.map((m, i) => (
         <div key={i} className={`${s.recipe} ${s.r}`} style={{ cursor: "pointer" }} onClick={() => setDetail(m)}>
-          <div className={s.img} style={{ background: "linear-gradient(140deg,rgba(183,155,255,.18),rgba(91,209,255,.1))" }}>{m.emoji || "🍽️"}
+          <div className={s.img}>
+            <img className={s.cimg} src={aiPhoto(m.name)} alt={m.name} loading="lazy" />
             <span className={s.badge}><Icon name="spark" size={11} />Généré par IA</span>
           </div>
           <div className={s.body}>
@@ -1074,6 +1078,70 @@ function BarcodeScanner({ onDetected, onClose, onUnsupported }: { onDetected: (v
       <div className={s.bline} />
       <button className={s.bclose} onClick={onClose} aria-label="Fermer">✕</button>
       <div className={s.bhint}>Vise le code-barres du produit</div>
+    </div>
+  );
+}
+
+/* ---------------- BIBLIOTHÈQUE DE RECETTES (FR, avec photos) ---------------- */
+function Library({ day, pantry, userId, go }: { day: Day; pantry: string[]; userId?: string; go: (t: Tab) => void }) {
+  const [meal, setMeal] = useState<"all" | MealKey>("all");
+  const [sel, setSel] = useState<LibRecipe | null>(null);
+  const filters: [string, string][] = [["all", "Tous"], ["petit-dej", "Petit-déj"], ["dejeuner", "Déjeuner"], ["diner", "Dîner"], ["collation", "Collation"]];
+  const list = libRecipes.filter((r) => meal === "all" || r.meal === meal);
+  return (
+    <>
+      <div className={`${s.exfrow} ${s.r} ${s.r3}`}>
+        {filters.map(([v, l]) => <span key={v} className={`${s.ef} ${meal === v ? s.on : ""}`} onClick={() => setMeal(v as "all" | MealKey)}>{l}</span>)}
+      </div>
+      <div className={`${s.rgrid} ${s.r} ${s.r4}`}>
+        {list.map((rc) => (
+          <div key={rc.id} className={s.rcard} onClick={() => setSel(rc)}>
+            <img src={rc.photo} alt={rc.name} loading="lazy" />
+            <div className={s.rt}>{rc.name}<div style={{ fontSize: 11, color: "var(--txt-2)", fontWeight: 500, marginTop: 3 }}>{rc.kcal} kcal · {rc.protein}g P</div></div>
+          </div>
+        ))}
+      </div>
+      {sel && <LibRecipeModal recipe={sel} pantry={pantry} userId={userId} day={day} go={go} onClose={() => setSel(null)} />}
+    </>
+  );
+}
+
+function LibRecipeModal({ recipe, pantry, userId, day, go, onClose }: { recipe: LibRecipe; pantry: string[]; userId?: string; day: Day; go: (t: Tab) => void; onClose: () => void }) {
+  const [added, setAdded] = useState(false);
+  const [bought, setBought] = useState(false);
+  const has = (ing: string) => pantry.some((p) => ing.toLowerCase().includes(p.toLowerCase()));
+  const missing = recipe.ingredients.filter((i) => !has(i));
+  return (
+    <div className={s.modalwrap} onClick={onClose}>
+      <div className={`${s.sheet} ${s.rsheet}`} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}><span className={s.x} onClick={onClose}>✕</span></div>
+        <img className={s.mphoto} src={recipe.photo} alt={recipe.name} />
+        <h3 style={{ fontFamily: "var(--display)", fontWeight: 600, fontSize: 20, marginBottom: 9 }}>{recipe.emoji} {recipe.name}</h3>
+        <div className={s.mmeta}><span>{recipe.time} min</span><span>{recipe.kcal} kcal</span><span>{recipe.tag}</span></div>
+        <div className={s.nrow}>
+          <div className={s.ncell}><b>{recipe.kcal}</b><span>kcal</span></div>
+          <div className={s.ncell}><b>{recipe.protein}g</b><span>prot</span></div>
+          <div className={s.ncell}><b>{recipe.carbs}g</b><span>gluc</span></div>
+          <div className={s.ncell}><b>{recipe.fat}g</b><span>lip</span></div>
+        </div>
+        <div className={s.rsec}>Ingrédients <span style={{ fontSize: 11, color: "var(--txt-3)", fontFamily: "var(--body)", fontWeight: 500 }}>· {recipe.ingredients.length - missing.length} en stock / {missing.length} à acheter</span></div>
+        <ul className={s.inglist}>
+          {recipe.ingredients.map((x, i) => { const h = has(x); return (
+            <li key={i} className={h ? s.ihave : s.ibuy}><Icon name={h ? "check" : "cart"} size={13} /><span>{x}</span>{!h && <span className={s.buytag}>à acheter</span>}</li>
+          ); })}
+        </ul>
+        {missing.length > 0 && userId && (
+          <button className={`${s.btn} ${s.ghost}`} style={{ width: "100%", marginBottom: 6 }} disabled={bought} onClick={async () => { await addManyToBuy(userId, missing.map((x) => ({ name: x }))); setBought(true); }}>
+            <Icon name={bought ? "check" : "cart"} size={16} />{bought ? "Manquant ajouté ✓" : `Acheter le manquant (${missing.length})`}
+          </button>
+        )}
+        <div className={s.rsec}>Préparation</div>
+        <ol className={s.rsteps}>{recipe.steps.map((x, i) => <li key={i}>{x}</li>)}</ol>
+        <div className={s.scanbtns} style={{ marginTop: 16 }}>
+          <button className={`${s.btn} ${s.ghost}`} onClick={() => { onClose(); go("courses"); }}><Icon name="cart" size={16} />Ma liste</button>
+          <button className={`${s.btn} ${s.prim}`} disabled={added} onClick={async () => { await day.addEntry({ meal_type: recipe.meal, name: recipe.name, qty: "1 portion", kcal: recipe.kcal, protein: recipe.protein, carbs: recipe.carbs, fat: recipe.fat }); setAdded(true); }}><Icon name={added ? "check" : "plus"} size={16} />{added ? "Ajouté" : "Au journal"}</button>
+        </div>
+      </div>
     </div>
   );
 }
