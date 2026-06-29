@@ -7,6 +7,16 @@ export const foodPhoto = (keyword: string, lock: number) =>
   `https://loremflickr.com/640/420/${encodeURIComponent(keyword)}?lock=${lock}`;
 
 const hash = (s: string) => { let n = 0; for (const c of s) n = (n * 31 + c.charCodeAt(0)) % 100000; return n; };
+
+/** Mélange déterministe (Fisher-Yates seedé) — l'ordre change selon le seed. */
+export function shuffleSeeded<T>(arr: T[], seed: number): T[] {
+  const a = [...arr];
+  let st = seed >>> 0;
+  const rng = () => { st = (st * 1664525 + 1013904223) >>> 0; return st / 4294967296; };
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
 /** Photo pour une recette IA (mot-clé dérivé du nom). */
 export const aiPhoto = (name: string) => foodPhoto(`${name.split(/[ ,(]/)[0]},food`, hash(name));
 
@@ -106,4 +116,90 @@ export const recipes: LibRecipe[] = [
   r("barre", "Barre énergie maison", "🍫", "energy,bar,oats", 45, "collation", 10, 230, 8, 30, 9, "Avant le sport",
     ["50 g de flocons d'avoine", "1 c. à soupe de miel", "1 c. à soupe de beurre de cacahuète", "20 g de chocolat noir"],
     ["Mélange avoine, miel et beurre de cacahuète.", "Tasse dans un moule, ajoute le chocolat fondu.", "Réfrigère 1 h, coupe en barres."]),
+
+  // Petit-déjeuner (suite)
+  r("smoothie-bowl", "Smoothie bowl açaí", "🥣", "smoothie,bowl,acai", 50, "petit-dej", 8, 320, 12, 50, 8, "Vitaminé",
+    ["1 banane congelée", "100 g de fruits rouges", "150 ml de lait végétal", "Granola", "Graines de chia"],
+    ["Mixe banane, fruits et lait jusqu'à texture épaisse.", "Verse dans un bol.", "Garnis de granola, fruits et chia."]),
+  r("pain-perdu", "Pain perdu protéiné", "🍞", "french,toast", 51, "petit-dej", 12, 360, 20, 42, 12, "Gourmand",
+    ["2 tranches de pain complet", "2 œufs", "100 ml de lait", "Cannelle", "Fruits frais"],
+    ["Bats œufs, lait et cannelle.", "Trempe le pain puis dore-le à la poêle.", "Sers avec des fruits frais."]),
+  r("oeuf-haricots", "Œufs au plat & haricots", "🍳", "fried,egg,beans", 52, "petit-dej", 10, 330, 20, 30, 14, "Rassasiant",
+    ["2 œufs", "150 g de haricots blancs sauce tomate", "1 tranche de pain", "Persil"],
+    ["Réchauffe les haricots.", "Cuis les œufs au plat.", "Sers avec le pain grillé."]),
+  r("chia-coco", "Chia pudding coco", "🥥", "chia,pudding,coconut", 53, "petit-dej", 5, 300, 10, 35, 14, "À préparer la veille",
+    ["3 c. à soupe de graines de chia", "200 ml de lait de coco", "1 c. à café de miel", "Fruits"],
+    ["Mélange chia, lait de coco et miel.", "Laisse prendre au frais 4 h (ou la nuit).", "Ajoute des fruits avant de servir."]),
+  r("tartine-avocat-oeuf", "Tartine avocat & œuf poché", "🥑", "avocado,egg,toast", 54, "petit-dej", 10, 340, 16, 28, 19, "Tendance",
+    ["1 tranche de pain complet", "1/2 avocat", "1 œuf", "Vinaigre", "Piment, citron"],
+    ["Poche l'œuf 3 min dans l'eau vinaigrée.", "Écrase l'avocat sur le pain.", "Dépose l'œuf, assaisonne."]),
+
+  // Déjeuner (suite)
+  r("poke-saumon", "Poke bowl saumon", "🍣", "poke,bowl,salmon", 55, "dejeuner", 20, 520, 34, 58, 16, "Frais & complet",
+    ["120 g de saumon cru", "70 g de riz (cru)", "Avocat, concombre, edamame", "Sauce soja", "Sésame"],
+    ["Cuis le riz et laisse-le tiédir.", "Coupe le saumon en dés.", "Assemble le bol, nappe de sauce soja et sésame."]),
+  r("chili", "Chili con carne", "🌶️", "chili,con,carne", 56, "dejeuner", 30, 480, 32, 50, 14, "Réconfortant",
+    ["120 g de bœuf haché 5%", "150 g de haricots rouges", "Tomates concassées", "Oignon, ail, cumin", "Riz"],
+    ["Fais revenir oignon, ail et viande.", "Ajoute tomates, haricots et épices.", "Mijote 20 min, sers avec du riz."]),
+  r("riz-cantonais", "Riz cantonais léger", "🍚", "fried,rice", 57, "dejeuner", 20, 460, 22, 62, 12, "Rapide",
+    ["80 g de riz (cru)", "1 œuf", "100 g de jambon ou poulet", "Petits pois, carotte", "Sauce soja"],
+    ["Cuis le riz la veille de préférence.", "Brouille l'œuf, réserve.", "Fais sauter légumes, viande et riz.", "Ajoute l'œuf et la sauce soja."]),
+  r("galette-sarrasin", "Galette de sarrasin complète", "🥞", "buckwheat,galette", 58, "dejeuner", 15, 420, 22, 45, 16, "Bretagne",
+    ["1 galette de sarrasin", "1 œuf", "1 tranche de jambon", "40 g d'emmental", "Salade"],
+    ["Réchauffe la galette à la poêle.", "Casse l'œuf au centre, ajoute jambon et fromage.", "Replie et sers avec de la salade."]),
+  r("salade-lentilles", "Salade lentilles & feta", "🥗", "lentil,salad,feta", 59, "dejeuner", 15, 440, 20, 45, 18, "Végétarien",
+    ["150 g de lentilles cuites", "50 g de feta", "Tomates cerises", "Oignon rouge", "Vinaigrette"],
+    ["Mélange lentilles, tomates et oignon.", "Émiette la feta dessus.", "Assaisonne de vinaigrette."]),
+  r("burger-dinde", "Burger maison à la dinde", "🍔", "turkey,burger", 60, "dejeuner", 20, 510, 38, 45, 18, "Plaisir équilibré",
+    ["1 pain burger complet", "130 g de dinde hachée", "Salade, tomate, oignon", "1 tranche de cheddar", "Sauce yaourt"],
+    ["Forme et cuis le steak de dinde.", "Toaste le pain.", "Monte le burger avec légumes, fromage et sauce."]),
+  r("couscous-poulet", "Couscous poulet & légumes", "🍲", "couscous,chicken", 61, "dejeuner", 30, 540, 36, 68, 12, "Convivial",
+    ["80 g de semoule (cru)", "120 g de poulet", "Courgette, carotte, pois chiches", "Épices ras-el-hanout", "Bouillon"],
+    ["Cuis les légumes et le poulet dans le bouillon épicé.", "Prépare la semoule.", "Sers la semoule nappée de bouillon et légumes."]),
+  r("pates-pesto", "Pâtes pesto & poulet", "🍝", "pesto,pasta,chicken", 62, "dejeuner", 18, 560, 36, 62, 18, "Express",
+    ["80 g de pâtes (cru)", "120 g de poulet", "2 c. à soupe de pesto", "Tomates cerises", "Parmesan"],
+    ["Cuis les pâtes.", "Poêle le poulet en dés.", "Mélange pâtes, poulet, pesto et tomates.", "Parsème de parmesan."]),
+
+  // Dîner (suite)
+  r("veloute-potiron", "Velouté de potiron", "🎃", "pumpkin,soup", 63, "diner", 25, 240, 8, 35, 8, "Réconfortant",
+    ["500 g de potiron", "1 oignon", "300 ml de bouillon", "1 c. à soupe de crème", "Muscade"],
+    ["Fais revenir l'oignon, ajoute le potiron.", "Couvre de bouillon, cuis 20 min.", "Mixe, ajoute crème et muscade."]),
+  r("papillote-poisson", "Papillote de poisson & légumes", "🐟", "fish,papillote", 64, "diner", 25, 360, 36, 18, 14, "Sans matière grasse",
+    ["180 g de poisson blanc", "Courgette, tomate, fenouil", "Citron", "Herbes", "Filet d'huile"],
+    ["Dispose poisson et légumes sur du papier cuisson.", "Citron, herbes, un filet d'huile.", "Ferme la papillote, four 200°C 20 min."]),
+  r("boulettes-dinde", "Boulettes de dinde tomate", "🍢", "turkey,meatballs", 65, "diner", 25, 380, 34, 20, 18, "Riche en protéines",
+    ["150 g de dinde hachée", "Chapelure, 1 œuf", "Sauce tomate", "Ail, herbes", "Parmesan"],
+    ["Mélange dinde, chapelure, œuf, ail.", "Forme des boulettes et dore-les.", "Mijote dans la sauce tomate 10 min."]),
+  r("gratin-courgettes", "Gratin de courgettes au chèvre", "🧀", "zucchini,gratin", 66, "diner", 30, 340, 18, 16, 22, "Végétarien",
+    ["2 courgettes", "80 g de chèvre", "2 œufs", "50 ml de crème", "Herbes"],
+    ["Poêle les courgettes en rondelles.", "Bats œufs et crème.", "Dispose courgettes et chèvre, nappe d'appareil.", "Four 180°C 25 min."]),
+  r("wok-nouilles", "Wok de nouilles & légumes", "🍜", "noodle,wok", 67, "diner", 18, 420, 16, 60, 12, "Vegan",
+    ["100 g de nouilles", "Brocoli, poivron, carotte", "Sauce soja", "Gingembre, ail", "Huile de sésame"],
+    ["Cuis les nouilles.", "Fais sauter les légumes au wok.", "Ajoute nouilles, sauce soja et gingembre."]),
+  r("quiche-sans-pate", "Quiche légère sans pâte", "🥧", "crustless,quiche", 68, "diner", 30, 320, 22, 12, 20, "Léger",
+    ["3 œufs", "100 ml de lait", "100 g de jambon", "Épinards", "40 g de gruyère"],
+    ["Bats œufs et lait.", "Ajoute jambon, épinards, gruyère.", "Verse dans un moule, four 180°C 25 min."]),
+  r("brochettes-poulet", "Brochettes poulet & légumes", "🍢", "chicken,skewers", 69, "diner", 20, 360, 40, 12, 16, "Au four ou plancha",
+    ["180 g de poulet", "Poivron, courgette, oignon", "Huile d'olive", "Paprika, ail", "Citron"],
+    ["Coupe poulet et légumes, marine avec épices.", "Monte les brochettes.", "Cuis 12-15 min en retournant."]),
+  r("dahl", "Dahl de lentilles corail", "🍛", "red,lentil,dahl", 70, "diner", 25, 420, 18, 58, 12, "Vegan & épicé",
+    ["120 g de lentilles corail", "200 ml de lait de coco", "Tomate, oignon, ail", "Curry, gingembre", "Coriandre"],
+    ["Fais revenir oignon, ail, épices.", "Ajoute lentilles, tomate et lait de coco.", "Mijote 20 min, parsème de coriandre."]),
+
+  // Collation (suite)
+  r("cottage-noix", "Cottage cheese & noix", "🧀", "cottage,cheese,nuts", 71, "collation", 3, 210, 22, 8, 10, "Riche en protéines",
+    ["150 g de cottage cheese", "15 g de noix", "1 c. à café de miel"],
+    ["Verse le cottage cheese dans un bol.", "Ajoute noix et un filet de miel."]),
+  r("banane-choco", "Banane & chocolat noir", "🍌", "banana,chocolate", 72, "collation", 2, 190, 3, 32, 7, "Rapide",
+    ["1 banane", "20 g de chocolat noir 70%"],
+    ["Coupe la banane.", "Accompagne de quelques carrés de chocolat noir."]),
+  r("mix-oleagineux", "Mix d'oléagineux", "🥜", "nuts,mix", 73, "collation", 1, 250, 8, 12, 20, "Avant le sport",
+    ["20 g d'amandes", "15 g de noix de cajou", "10 g de raisins secs"],
+    ["Mélange le tout dans un petit contenant."]),
+  r("galette-riz-amande", "Galette de riz & purée d'amande", "🍘", "rice,cake,almond", 74, "collation", 2, 180, 5, 24, 8, "Léger",
+    ["2 galettes de riz", "1 c. à soupe de purée d'amande", "1/2 banane"],
+    ["Tartine les galettes de purée d'amande.", "Ajoute des rondelles de banane."]),
+  r("skyr-granola", "Skyr & granola", "🥣", "granola,yogurt", 75, "collation", 3, 240, 18, 30, 6, "Croquant",
+    ["150 g de skyr", "30 g de granola", "1 c. à café de miel"],
+    ["Verse le skyr dans un bol.", "Ajoute granola et miel."]),
 ];

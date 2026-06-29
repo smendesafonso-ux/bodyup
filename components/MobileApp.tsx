@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import s from "@/styles/mobile.module.css";
 import { Icon, type IconName } from "./Icon";
@@ -20,7 +20,7 @@ import { loadPantry, addPantryItem, addManyToBuy, setPantryStatus, removePantryI
 import { mealCategories, mealsByCategory, mealLookup, type MealLite, type MealFull } from "@/lib/themealdb";
 import { loadConnections, sendInvite, acceptInvite, removeConnection, loadSharedData, resolveUsername, setUsername, SHARE_LABELS, ALL_CATS, type Connection, type ShareCat, type SharedData } from "@/lib/social";
 import { loadStats, computePoints, levelFor, emojiForLevel, persistGamification, BADGES, type Stats } from "@/lib/gamification";
-import { recipes as libRecipes, aiPhoto, type LibRecipe } from "@/lib/recipes";
+import { recipes as libRecipes, aiPhoto, shuffleSeeded, type LibRecipe } from "@/lib/recipes";
 
 type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil" | "courses" | "progress" | "partage";
 type Day = ReturnType<typeof useDay>;
@@ -1086,12 +1086,18 @@ function BarcodeScanner({ onDetected, onClose, onUnsupported }: { onDetected: (v
 function Library({ day, pantry, userId, go }: { day: Day; pantry: string[]; userId?: string; go: (t: Tab) => void }) {
   const [meal, setMeal] = useState<"all" | MealKey>("all");
   const [sel, setSel] = useState<LibRecipe | null>(null);
+  // Rotation : l'ordre est mélangé à chaque visite (seed aléatoire) et au clic sur « Autres ».
+  const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e9));
   const filters: [string, string][] = [["all", "Tous"], ["petit-dej", "Petit-déj"], ["dejeuner", "Déjeuner"], ["diner", "Dîner"], ["collation", "Collation"]];
-  const list = libRecipes.filter((r) => meal === "all" || r.meal === meal);
+  const list = useMemo(() => shuffleSeeded(libRecipes.filter((r) => meal === "all" || r.meal === meal), seed), [meal, seed]);
   return (
     <>
       <div className={`${s.exfrow} ${s.r} ${s.r3}`}>
         {filters.map(([v, l]) => <span key={v} className={`${s.ef} ${meal === v ? s.on : ""}`} onClick={() => setMeal(v as "all" | MealKey)}>{l}</span>)}
+      </div>
+      <div className={`${s.libbar} ${s.r} ${s.r3}`}>
+        <span>{list.length} recettes</span>
+        <button onClick={() => setSeed(Math.floor(Math.random() * 1e9))}><Icon name="refresh" size={14} />Autres recettes</button>
       </div>
       <div className={`${s.rgrid} ${s.r} ${s.r4}`}>
         {list.map((rc) => (

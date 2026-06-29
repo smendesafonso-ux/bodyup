@@ -176,6 +176,10 @@
 .recipe{background:var(--card);border:1px solid var(--hair);border-radius:24px;overflow:hidden;margin-bottom:14px}
 .recipe .img{height:130px;position:relative;display:grid;place-items:center;font-size:54px;overflow:hidden;background:var(--surface)}
 .cimg{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover}
+.libbar{display:flex;align-items:center;justify-content:space-between;margin:2px 0 10px}
+.libbar span{font-size:12.5px;color:var(--txt-2);font-weight:500}
+.libbar button{display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);color:var(--txt);font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:100px;cursor:pointer}
+.libbar button:active{transform:scale(.96)}
 .recipe .img .fav{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:50%;background:rgba(7,10,8,.6);backdrop-filter:blur(6px);display:grid;place-items:center;border:1px solid var(--card-bd);cursor:pointer}
 .recipe .img .fav svg{width:16px;height:16px;color:var(--txt-2)}
 .recipe .img .badge{position:absolute;top:12px;left:12px;font-size:11px;font-weight:600;background:rgba(7,10,8,.7);backdrop-filter:blur(6px);padding:5px 11px;border-radius:100px;border:1px solid var(--card-bd);display:flex;align-items:center;gap:5px}
