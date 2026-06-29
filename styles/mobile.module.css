@@ -275,6 +275,36 @@
 .scorebox .txt b{display:block;font-size:13px;margin-bottom:2px}
 .scorebox .txt span{font-size:12.5px;color:var(--txt-2);line-height:1.4}
 .scorebox .nova{font-size:11px;color:var(--txt-3);margin-top:3px;display:block}
+/* liste d'aliments détectés (photo multi-éléments) */
+.itemlist{border:1px solid var(--hair);border-radius:14px;overflow:hidden;margin-bottom:14px}
+.fitem2{display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid var(--hair);cursor:pointer}
+.fitem2:last-child{border-bottom:none}
+.cbox2{width:22px;height:22px;border-radius:7px;border:2px solid var(--card-bd);flex:0 0 auto;display:grid;place-items:center}
+.cbox2 svg{width:12px;height:12px;stroke:#0a1400;opacity:0}
+.fitem2 .cbox2{background:var(--lime);border-color:var(--lime)}
+.fitem2 .cbox2 svg{opacity:1}
+.fitem2.off .cbox2{background:transparent;border-color:var(--card-bd)}
+.fitem2.off .cbox2 svg{opacity:0}
+.fitem2 .iname{flex:1;font-size:14px;font-weight:500}
+.fitem2 .iname small{display:block;color:var(--txt-3);font-size:11.5px;font-weight:400}
+.fitem2.off .iname{color:var(--txt-3)}
+.fitem2 .ikcal{font-size:13px;color:var(--txt-2);font-weight:600}
+.hintline{font-size:12px;color:var(--txt-2);margin:2px 4px 8px}
+
+/* Repas IA — génération */
+.genbar{background:linear-gradient(120deg,rgba(183,155,255,.1),rgba(255,255,255,.02));border:1px solid rgba(183,155,255,.22);border-radius:22px;padding:16px;margin-bottom:14px}
+.genbar .gl{font-size:12.5px;color:var(--txt-2);margin-bottom:10px}
+.genbar .gmac{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:13px}
+.genbar .gpill{font-size:12px;font-weight:600;background:var(--card);border:1px solid var(--hair);border-radius:100px;padding:6px 11px}
+.genbar .gpill b{font-family:var(--display)}
+.genbtn{width:100%;border:none;border-radius:14px;padding:14px;background:linear-gradient(140deg,var(--violet),#7c5cff);color:#fff;font-family:var(--display);font-weight:600;font-size:15px;display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer}
+.genbtn:disabled{opacity:.6}
+.genbtn svg{width:18px;height:18px}
+.genloading{display:flex;flex-direction:column;align-items:center;gap:12px;padding:40px 0;color:var(--txt-2);font-size:13.5px}
+.genloading .gsp{width:32px;height:32px;border:3px solid rgba(183,155,255,.25);border-top-color:var(--violet);border-radius:50%;animation:spin .7s linear infinite}
+.ingreds{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:13px}
+.ingreds span{font-size:11.5px;color:var(--txt-2);background:var(--surface);border:1px solid var(--hair);border-radius:100px;padding:5px 10px}
+.steps{font-size:12.5px;color:var(--txt-2);line-height:1.5;margin-bottom:13px;border-left:2px solid var(--card-bd);padding-left:11px}
 
 /* ---------- sub-screen header (back) ---------- */
 .subhead{display:flex;align-items:center;gap:13px;padding:8px 4px 18px}

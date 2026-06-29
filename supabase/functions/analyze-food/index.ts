@@ -35,6 +35,7 @@ const schema = {
     advice: { type: "string", description: "Avis nutritionnel court (1 phrase) en français" },
     items: {
       type: "array",
+      description: "TOUS les aliments distincts visibles, un objet par aliment",
       items: {
         type: "object",
         additionalProperties: false,
@@ -42,23 +43,26 @@ const schema = {
           name: { type: "string" },
           grams: { type: "number" },
           kcal: { type: "integer" },
+          protein: { type: "integer" },
+          carbs: { type: "integer" },
+          fat: { type: "integer" },
         },
-        required: ["name", "grams", "kcal"],
+        required: ["name", "grams", "kcal", "protein", "carbs", "fat"],
       },
     },
   },
   required: ["name", "confidence", "grams", "kcal", "protein", "carbs", "fat", "score", "advice", "items"],
 };
 
-const PROMPT = `Tu es un nutritionniste. Analyse la photo de nourriture et estime au mieux :
-- le nom du plat (en français),
-- la portion totale visible en grammes,
-- les calories totales (kcal) et les macros (protéines, glucides, lipides en grammes) pour CETTE portion,
-- une note santé "score" de 0 à 100 (qualité nutritionnelle globale du plat),
-- un "advice" : un avis nutritionnel court et utile en français (1 phrase),
-- la liste des aliments distincts identifiés.
-Donne une estimation réaliste même si l'image est imparfaite. confidence reflète ta certitude (0 à 1).
-Ce sont des estimations, pas un avis médical.`;
+const PROMPT = `Tu es un nutritionniste. Analyse la photo de nourriture en français.
+IMPORTANT : identifie SÉPARÉMENT chaque aliment distinct présent sur la photo et renseigne le tableau "items" — un objet par aliment (ex : un plat "steak-frites-salade" donne 3 items : steak, frites, salade), chacun avec sa portion en grammes, ses kcal et ses macros (protéines, glucides, lipides). N'oublie AUCUN élément visible.
+Renseigne aussi :
+- name : nom global du plat,
+- grams / kcal / protein / carbs / fat : totaux pour l'ensemble de l'assiette (= somme des items),
+- score : note santé de 0 à 100 (qualité nutritionnelle globale),
+- advice : un avis nutritionnel court et utile (1 phrase),
+- confidence : ta certitude de 0 à 1.
+Donne des estimations réalistes même si l'image est imparfaite. Ce ne sont pas des avis médicaux.`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });

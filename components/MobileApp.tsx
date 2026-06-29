@@ -10,8 +10,9 @@ import { useAuth } from "@/lib/auth";
 import { useDay, type NewFood } from "@/lib/useDay";
 import { searchFoods, lookupBarcode, type FoodHit } from "@/lib/foods";
 import { analyzeFoodPhoto, type FoodAnalysis } from "@/lib/vision";
+import { suggestMeals, type AiMeal } from "@/lib/meals";
 import type { Profile } from "@/lib/supabase";
-import { workouts, recipes, coachThread, coachChips, badges, shoppingList, progressTimeline } from "@/lib/data";
+import { workouts, coachThread, coachChips, badges, shoppingList, progressTimeline } from "@/lib/data";
 
 type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil" | "courses" | "progress";
 type Day = ReturnType<typeof useDay>;
@@ -81,7 +82,7 @@ export default function MobileApp() {
             <div className={s.page} key={tab}>
               {tab === "home" && <HomeScreen profile={profile} day={day} target={target} onAvatar={() => setTab("profil")} />}
               {tab === "journal" && <JournalScreen day={day} onAdd={(m) => setAddMeal(m)} />}
-              {tab === "repas" && <RepasScreen day={day} go={setTab} />}
+              {tab === "repas" && <RepasScreen day={day} profile={profile} target={target} go={setTab} />}
               {tab === "scan" && <ScanScreen day={day} />}
               {tab === "exo" && <ExoScreen day={day} target={target} />}
               {tab === "coach" && <CoachScreen />}
@@ -415,6 +416,7 @@ function ScanScreen({ day }: { day: Day }) {
   const [code, setCode] = useState("");
   const [grams, setGrams] = useState("100");
   const [scanning, setScanning] = useState(false);
+  const [checked, setChecked] = useState<Set<number>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
   const resultRef = useRef<HTMLDivElement>(null);
   const modes: { icon: IconName; label: string }[] = [
@@ -433,7 +435,9 @@ function ScanScreen({ day }: { day: Day }) {
     setBusy(true); setErr(null); setPhoto(null);
     try {
       const r = await analyzeFoodPhoto(file);
-      setPhoto(r); setGrams(String(Math.round(r.grams)));
+      setPhoto(r);
+      const n = Math.max(r.items?.length ?? 0, 1);
+      setChecked(new Set(Array.from({ length: n }, (_, i) => i)));
     } catch (x) {
       setErr(x instanceof Error ? x.message : "Analyse impossible. Réessaie.");
     } finally {
@@ -452,21 +456,31 @@ function ScanScreen({ day }: { day: Day }) {
     else setErr("Produit introuvable sur Open Food Facts. Essaie la photo ou la saisie manuelle.");
   };
 
+  // Code-barres : valeurs pour 100 g → mise à l'échelle par la quantité
   const g = parseFloat(grams) || 0;
-  // photo : valeurs absolues pour la portion estimée → on met à l'échelle
-  const pf = photo && photo.grams > 0 ? g / photo.grams : 0;
   const bf = g / 100;
-  const calc = photo
-    ? { kcal: Math.round(photo.kcal * pf), p: Math.round(photo.protein * pf), c: Math.round(photo.carbs * pf), f: Math.round(photo.fat * pf) }
-    : bc
-    ? { kcal: Math.round(bc.kcal100 * bf), p: Math.round(bc.p100 * bf), c: Math.round(bc.c100 * bf), f: Math.round(bc.f100 * bf) }
-    : null;
-  const resultName = photo ? photo.name : bc ? (bc.brand ? `${bc.name} (${bc.brand})` : bc.name) : "";
-
-  const addToJournal = async () => {
-    if (!calc || g <= 0) return;
+  const bcCalc = bc ? { kcal: Math.round(bc.kcal100 * bf), p: Math.round(bc.p100 * bf), c: Math.round(bc.c100 * bf), f: Math.round(bc.f100 * bf) } : null;
+  const bcName = bc ? (bc.brand ? `${bc.name} (${bc.brand})` : bc.name) : "";
+  const addBarcode = async () => {
+    if (!bcCalc || g <= 0) return;
     setBusy(true);
-    await day.addEntry({ meal_type: meal, name: resultName, qty: `${g} g`, kcal: calc.kcal, protein: calc.p, carbs: calc.c, fat: calc.f });
+    await day.addEntry({ meal_type: meal, name: bcName, qty: `${g} g`, kcal: bcCalc.kcal, protein: bcCalc.p, carbs: bcCalc.c, fat: bcCalc.f });
+    reset();
+  };
+
+  // Photo : un item par aliment détecté (repli sur le total si la liste est vide)
+  const photoItems = photo
+    ? (photo.items?.length ? photo.items : [{ name: photo.name, grams: photo.grams, kcal: photo.kcal, protein: photo.protein, carbs: photo.carbs, fat: photo.fat }])
+    : [];
+  const toggle = (i: number) => setChecked((p) => { const n = new Set(p); n.has(i) ? n.delete(i) : n.add(i); return n; });
+  const addPhotoItems = async () => {
+    if (!photo || checked.size === 0) return;
+    setBusy(true);
+    for (const i of checked) {
+      const it = photoItems[i];
+      if (!it) continue;
+      await day.addEntry({ meal_type: meal, name: it.name, qty: `${Math.round(it.grams)} g`, kcal: it.kcal, protein: it.protein ?? 0, carbs: it.carbs ?? 0, fat: it.fat ?? 0 });
+    }
     reset();
   };
 
@@ -527,19 +541,10 @@ function ScanScreen({ day }: { day: Day }) {
 
       {err && <div className={`${s.scanerr} ${s.r}`}>{err}</div>}
 
-      {calc && (
+      {bc && bcCalc && (
         <div className={`${s.scancard} ${s.r}`} ref={resultRef}>
-          <div className={s.ttl}><b>{resultName}</b>{photo && <span className={s.conf}>{Math.round(photo.confidence * 100)}% sûr</span>}</div>
-
-          {photo && typeof photo.score === "number" && (
-            <div className={s.scorebox}>
-              <div className={s.grade} style={{ background: photo.score >= 70 ? "var(--lime)" : photo.score >= 40 ? "var(--amber)" : "var(--coral)" }}>
-                <span className={s.num}>{photo.score}</span><span className={s.den}>/100</span>
-              </div>
-              <div className={s.txt}><b>Note santé</b><span>{photo.advice}</span></div>
-            </div>
-          )}
-          {bc && bc.nutriscore && (
+          <div className={s.ttl}><b>{bcName}</b></div>
+          {bc.nutriscore && (
             <div className={s.scorebox}>
               <div className={`${s.grade} ${s.letter}`} style={{ background: NUTRI_COLOR[bc.nutriscore], color: NUTRI_TEXT[bc.nutriscore] }}>{bc.nutriscore.toUpperCase()}</div>
               <div className={s.txt}>
@@ -549,25 +554,53 @@ function ScanScreen({ day }: { day: Day }) {
               </div>
             </div>
           )}
-
           <div className={s.qtyrow}>
             <input type="number" inputMode="numeric" value={grams} onChange={(e) => setGrams(e.target.value)} />
             <span className={s.u}>grammes</span>
           </div>
           <div className={s.nrow}>
-            <div className={s.ncell}><b>{calc.kcal}</b><span>kcal</span></div>
-            <div className={s.ncell}><b>{calc.p}g</b><span>prot</span></div>
-            <div className={s.ncell}><b>{calc.c}g</b><span>gluc</span></div>
-            <div className={s.ncell}><b>{calc.f}g</b><span>lip</span></div>
+            <div className={s.ncell}><b>{bcCalc.kcal}</b><span>kcal</span></div>
+            <div className={s.ncell}><b>{bcCalc.p}g</b><span>prot</span></div>
+            <div className={s.ncell}><b>{bcCalc.c}g</b><span>gluc</span></div>
+            <div className={s.ncell}><b>{bcCalc.f}g</b><span>lip</span></div>
           </div>
           <div className={s.mealpick}>
-            {MEAL_DEFS.map((m) => (
-              <button key={m.key} className={meal === m.key ? s.on : ""} onClick={() => setMeal(m.key)}>{m.emoji} {m.name.split("-")[0].split(" ")[0]}</button>
+            {MEAL_DEFS.map((m) => (<button key={m.key} className={meal === m.key ? s.on : ""} onClick={() => setMeal(m.key)}>{m.emoji} {m.name.split("-")[0].split(" ")[0]}</button>))}
+          </div>
+          <div className={s.scanbtns}>
+            <button className={`${s.btn} ${s.ghost}`} onClick={reset}><Icon name="refresh" size={16} />Reprendre</button>
+            <button className={`${s.btn} ${s.prim}`} onClick={addBarcode} disabled={busy || g <= 0}><Icon name="check" size={16} />Valider</button>
+          </div>
+        </div>
+      )}
+
+      {photo && (
+        <div className={`${s.scancard} ${s.r}`} ref={resultRef}>
+          <div className={s.ttl}><b>{photo.name}</b><span className={s.conf}>{Math.round(photo.confidence * 100)}% sûr</span></div>
+          {typeof photo.score === "number" && (
+            <div className={s.scorebox}>
+              <div className={s.grade} style={{ background: photo.score >= 70 ? "var(--lime)" : photo.score >= 40 ? "var(--amber)" : "var(--coral)" }}>
+                <span className={s.num}>{photo.score}</span><span className={s.den}>/100</span>
+              </div>
+              <div className={s.txt}><b>Note santé</b><span>{photo.advice}</span></div>
+            </div>
+          )}
+          <div className={s.mealpick}>
+            {MEAL_DEFS.map((m) => (<button key={m.key} className={meal === m.key ? s.on : ""} onClick={() => setMeal(m.key)}>{m.emoji} {m.name.split("-")[0].split(" ")[0]}</button>))}
+          </div>
+          <div className={s.hintline}>Aliments détectés — décoche ce que tu n&apos;as pas mangé :</div>
+          <div className={s.itemlist}>
+            {photoItems.map((it, i) => (
+              <div key={i} className={`${s.fitem2} ${checked.has(i) ? "" : s.off}`} onClick={() => toggle(i)}>
+                <span className={s.cbox2}><Icon name="check" size={12} /></span>
+                <div className={s.iname}>{it.name}<small>{Math.round(it.grams)} g · {it.protein ?? 0}P {it.carbs ?? 0}G {it.fat ?? 0}L</small></div>
+                <div className={s.ikcal}>{it.kcal} kcal</div>
+              </div>
             ))}
           </div>
           <div className={s.scanbtns}>
             <button className={`${s.btn} ${s.ghost}`} onClick={reset}><Icon name="refresh" size={16} />Reprendre</button>
-            <button className={`${s.btn} ${s.prim}`} onClick={addToJournal} disabled={busy || g <= 0}><Icon name="check" size={16} />Valider</button>
+            <button className={`${s.btn} ${s.prim}`} onClick={addPhotoItems} disabled={busy || checked.size === 0}><Icon name="check" size={16} />Ajouter ({checked.size})</button>
           </div>
         </div>
       )}
@@ -608,45 +641,91 @@ function ExoScreen({ day, target }: { day: Day; target: number }) {
   );
 }
 
-/* ---------------- REPAS IA (ajoute au journal) ---------------- */
-function RepasScreen({ day, go }: { day: Day; go: (t: Tab) => void }) {
-  const [meal, setMeal] = useState(0);
+/* ---------------- REPAS IA (génération par Claude, adaptée aux macros restantes) ---------------- */
+const MEAL_TABS = [
+  { label: "Dîner", key: "diner" }, { label: "Petit-déj", key: "petit-dej" },
+  { label: "Déjeuner", key: "dejeuner" }, { label: "Collation", key: "collation" },
+] as const;
+
+function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile | null; target: number; go: (t: Tab) => void }) {
+  const [mi, setMi] = useState(0);
+  const [meals, setMeals] = useState<AiMeal[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const [added, setAdded] = useState<Record<string, boolean>>({});
-  const tabs = ["Dîner", "Petit-déj", "Déjeuner", "Collation"];
-  const delay = [s.r3, s.r4];
+
+  const goals = macroGoals(target);
+  const remaining = {
+    kcal: Math.max(target - day.consumed + day.burned, 0),
+    protein: Math.max(goals.p - day.macros.p, 0),
+    carbs: Math.max(goals.c - day.macros.c, 0),
+    fat: Math.max(goals.f - day.macros.f, 0),
+  };
+
+  const generate = async () => {
+    setLoading(true); setErr(null); setMeals([]); setAdded({});
+    try {
+      const r = await suggestMeals({ mealType: MEAL_TABS[mi].label, goal: profile?.goal ?? "maintien", remaining, count: 3 });
+      setMeals(r);
+    } catch (x) {
+      setErr(x instanceof Error ? x.message : "Génération impossible.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <>
       <div className={`${s.phead} ${s.r} ${s.r1}`}>
-        <div><div className={s.hi}>Idées adaptées à tes objectifs</div><h2>Repas IA <span className={s.demoflag}>DÉMO</span></h2></div>
+        <div><div className={s.hi}>Adapté à ton profil et à tes besoins</div><h2>Repas IA</h2></div>
         <button className={s.headact} onClick={() => go("courses")} aria-label="Liste de courses"><Icon name="cart" /></button>
       </div>
+
       <div className={`${s.mealtabs} ${s.r} ${s.r2}`}>
-        {tabs.map((t, i) => <div key={t} className={`${s.mtab} ${meal === i ? s.on : ""}`} onClick={() => setMeal(i)}>{t}</div>)}
+        {MEAL_TABS.map((t, i) => <div key={t.key} className={`${s.mtab} ${mi === i ? s.on : ""}`} onClick={() => { setMi(i); setMeals([]); setErr(null); }}>{t.label}</div>)}
       </div>
-      {recipes.map((rc, i) => (
-        <div key={rc.title} className={`${s.recipe} ${s.r} ${delay[i]}`}>
-          <div className={s.img} style={{ background: rc.bg }}>{rc.emoji}
-            <span className={s.badge}><Icon name="spark" size={11} />Suggestion IA</span>
-            <span className={s.fav}><Icon name="heart" size={16} style={rc.fav ? { color: "var(--coral)", fill: "var(--coral)" } : undefined} /></span>
+
+      <div className={`${s.genbar} ${s.r} ${s.r3}`}>
+        <div className={s.gl}>Repas calés sur ce qu&apos;il te reste aujourd&apos;hui</div>
+        <div className={s.gmac}>
+          <span className={s.gpill}><b>{fr(remaining.kcal)}</b> kcal</span>
+          <span className={s.gpill}><b>{remaining.protein}</b>g prot</span>
+          <span className={s.gpill}><b>{remaining.carbs}</b>g gluc</span>
+          <span className={s.gpill}><b>{remaining.fat}</b>g lip</span>
+        </div>
+        <button className={s.genbtn} onClick={generate} disabled={loading}>
+          <Icon name="spark" size={18} />{loading ? "Génération…" : `Générer des idées de ${MEAL_TABS[mi].label.toLowerCase()}`}
+        </button>
+      </div>
+
+      {loading && <div className={s.genloading}><div className={s.gsp} />L&apos;IA compose tes repas…</div>}
+      {err && <div className={`${s.scanerr} ${s.r}`}>{err}</div>}
+
+      {meals.map((m, i) => (
+        <div key={i} className={`${s.recipe} ${s.r}`}>
+          <div className={s.img} style={{ background: "linear-gradient(140deg,rgba(183,155,255,.18),rgba(91,209,255,.1))" }}>{m.emoji || "🍽️"}
+            <span className={s.badge}><Icon name="spark" size={11} />Généré par IA</span>
           </div>
           <div className={s.body}>
-            <h4>{rc.title}</h4>
+            <h4>{m.name}</h4>
             <div className={s.meta}>
-              <span><Icon name="clock" size={13} />{rc.time}</span>
-              <span><Icon name="flameLine" size={13} />{rc.kcal} kcal</span>
-              <span>{rc.tag}</span>
+              <span><Icon name="clock" size={13} />{m.time} min</span>
+              <span><Icon name="flameLine" size={13} />{m.kcal} kcal</span>
+              <span>{m.tag}</span>
             </div>
             <div className={s.minimacros}>
-              <div className={s.mm}><b>{rc.p}g</b><span>Prot</span></div>
-              <div className={s.mm}><b>{rc.c}g</b><span>Gluc</span></div>
-              <div className={s.mm}><b>{rc.f}g</b><span>Lip</span></div>
+              <div className={s.mm}><b>{m.protein}g</b><span>Prot</span></div>
+              <div className={s.mm}><b>{m.carbs}g</b><span>Gluc</span></div>
+              <div className={s.mm}><b>{m.fat}g</b><span>Lip</span></div>
             </div>
+            {m.ingredients?.length ? <div className={s.ingreds}>{m.ingredients.map((ing, k) => <span key={k}>{ing}</span>)}</div> : null}
+            {m.steps ? <div className={s.steps}>{m.steps}</div> : null}
             <div className={s.acts}>
               <button className={s.add} onClick={async () => {
-                await day.addEntry({ meal_type: "diner", name: rc.title, qty: "1 portion", kcal: rc.kcal, protein: rc.p, carbs: rc.c, fat: rc.f });
-                setAdded((a) => ({ ...a, [rc.title]: true }));
+                await day.addEntry({ meal_type: MEAL_TABS[mi].key, name: m.name, qty: "1 portion", kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat });
+                setAdded((a) => ({ ...a, [m.name]: true }));
               }}>
-                <Icon name={added[rc.title] ? "check" : "plus"} size={15} />{added[rc.title] ? "Ajouté" : "Au journal"}
+                <Icon name={added[m.name] ? "check" : "plus"} size={15} />{added[m.name] ? "Ajouté" : "Au journal"}
               </button>
               <button className={s.cartbtn} onClick={() => go("courses")} aria-label="Ajouter aux courses"><Icon name="cart" size={16} /></button>
             </div>

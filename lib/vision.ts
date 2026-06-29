@@ -12,7 +12,7 @@ export interface FoodAnalysis {
   fat: number;
   score?: number; // note santé 0–100
   advice?: string; // avis nutritionnel court
-  items: { name: string; grams: number; kcal: number }[];
+  items: { name: string; grams: number; kcal: number; protein?: number; carbs?: number; fat?: number }[];
 }
 
 /** Redimensionne une image et renvoie le base64 (sans préfixe data:). */
