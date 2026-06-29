@@ -14,11 +14,12 @@ import { analyzeFoodPhoto, type FoodAnalysis } from "@/lib/vision";
 import { suggestMeals, normIngredients, type AiMeal } from "@/lib/meals";
 import { translateTexts } from "@/lib/translate";
 import type { Profile } from "@/lib/supabase";
-import { coachThread, coachChips, badges, progressTimeline } from "@/lib/data";
+import { coachThread, coachChips, progressTimeline } from "@/lib/data";
 import { exercises, intensityClass, type Exercise, type Intensity } from "@/lib/exercises";
 import { loadPantry, addPantryItem, addManyToBuy, setPantryStatus, removePantryItem, searchCatalog, STAPLES, type PantryItem } from "@/lib/pantry";
 import { mealCategories, mealsByCategory, mealLookup, type MealLite, type MealFull } from "@/lib/themealdb";
 import { loadConnections, sendInvite, acceptInvite, removeConnection, loadSharedData, resolveUsername, setUsername, SHARE_LABELS, ALL_CATS, type Connection, type ShareCat, type SharedData } from "@/lib/social";
+import { loadStats, computePoints, levelFor, emojiForLevel, persistGamification, BADGES, type Stats } from "@/lib/gamification";
 
 type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil" | "courses" | "progress" | "partage";
 type Day = ReturnType<typeof useDay>;
@@ -1117,14 +1118,19 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
   const [picker, setPicker] = useState(false);
   const [compare, setCompare] = useState<{ name: string; cats: ShareCat[] } | null>(null);
   const [other, setOther] = useState<SharedData | null>(null);
+  const [myPoints, setMyPoints] = useState(0);
+  const [otherPoints, setOtherPoints] = useState(0);
 
   useEffect(() => { loadConnections().then((cs) => setConns(cs.filter((c) => c.status === "accepted"))); }, []);
+  useEffect(() => { if (user) loadStats(user.id).then((st) => { const p = computePoints(st); setMyPoints(p); persistGamification(user.id, p, levelFor(p)); }); }, [user]);
   const selectCompare = async (c: Connection) => {
     setPicker(false);
     const oid = c.requester_id === user?.id ? c.addressee_id : c.requester_id;
     const name = (c.requester_id === user?.id ? c.addressee_username : c.requester_username) ?? "?";
     const tc = (c.requester_id === user?.id ? c.addressee_categories : c.requester_categories) as ShareCat[];
     setCompare({ name, cats: tc }); setOther(null);
+    const { data: pts } = await supabase.rpc("connected_points", { other: oid });
+    setOtherPoints((pts as number) ?? 0);
     setOther(await loadSharedData(oid));
   };
 
@@ -1203,6 +1209,7 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
           </div>
           <div className={s.cmpgrid}>
             <div className={s.cmphead}><span /><span>Moi</span><span>{compare.name}</span></div>
+            <CmpRow label="Points" mine={fr(myPoints)} theirs={fr(otherPoints)} lead={lead(myPoints, otherPoints)} />
             {compare.cats.includes("poids") && <CmpRow label="Évolution poids" mine={fmtEvol(myEvol)} theirs={fmtEvol(theirEvol)} lead={lead(myEvol, theirEvol)} />}
             {compare.cats.includes("pas") && <CmpRow label="Pas aujourd'hui" mine={fr(day.steps)} theirs={fr(other.steps)} lead={lead(day.steps, other.steps)} />}
             {compare.cats.includes("pas") && <CmpRow label="Sommeil" mine={fmtSleep(day.sleepMin)} theirs={fmtSleep(other.sleepMin)} lead={lead(day.sleepMin, other.sleepMin)} />}
@@ -1228,9 +1235,10 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
         <span className={s.ch}>›</span>
       </div>
 
-      <div className={`${s.sectionH} ${s.r} ${s.r5}`}><h3>Récompenses <span className={s.demoflag}>DÉMO</span></h3></div>
-      <div className={`${s.badgewrap} ${s.r} ${s.r5}`}>
-        {badges.map((b) => <div key={b.label} className={`${s.bdg} ${b.locked ? s.lock : ""}`}>{b.emoji}<span>{b.label}</span></div>)}
+      <div className={`${s.healthcard} ${s.r} ${s.r5}`} onClick={() => go("profil")} style={{ background: "linear-gradient(120deg,rgba(201,255,60,.1),rgba(255,255,255,.02))", borderColor: "rgba(201,255,60,.22)" }}>
+        <div className={s.ic} style={{ background: "rgba(201,255,60,.14)" }}><Icon name="diamond" /></div>
+        <div><b>{fr(myPoints)} points · récompenses</b><span>Voir tes badges et ton niveau</span></div>
+        <span className={s.ch}>›</span>
       </div>
 
       {editW && (
@@ -1298,20 +1306,48 @@ function CmpRow({ label, mine, theirs, lead }: { label: string; mine: string; th
 
 /* ---------------- PROFIL (live + déconnexion) ---------------- */
 function ProfilScreen({ profile, email, go }: { profile: Profile | null; email: string; go: (t: Tab) => void }) {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
+  const [stats, setStats] = useState<Stats | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    loadStats(user.id).then((st) => { setStats(st); const p = computePoints(st); persistGamification(user.id, p, levelFor(p)); });
+  }, [user]);
+
   const name = profile?.display_name ?? "Utilisateur";
-  const initials = (name[0] ?? "?").toUpperCase();
   const goalLabel = profile?.goal === "perte" ? "perte de poids" : profile?.goal === "masse" ? "prise de masse" : "maintien";
   const deficit = profile?.tdee && profile?.calorie_target ? profile.tdee - profile.calorie_target : null;
+  const points = stats ? computePoints(stats) : (profile?.points ?? 0);
+  const level = levelFor(points);
+  const emoji = emojiForLevel(level);
+  const earnedCount = stats ? BADGES.filter((b) => b.earned(stats)).length : 0;
+
   return (
     <>
       <div className={`${s.profhero} ${s.r} ${s.r1}`}>
-        <div className={s.av}>{initials}</div>
+        <div className={s.av} style={{ fontSize: 40 }}>{emoji}</div>
         <h2>{name}</h2>
         <div className={s.sub}>{email}</div>
         <div className={s.sub}>Objectif : {goalLabel}{profile?.weight_kg ? ` · ${profile.weight_kg} → ${profile.target_kg} kg` : ""}</div>
       </div>
-      <div className={`${s.prem} ${s.r} ${s.r2}`}>
+
+      <div className={`${s.gamehdr} ${s.r} ${s.r2}`}>
+        <div className={s.gleft}>
+          <div className={s.pts}>{fr(points)} <small>points</small></div>
+          <div className={s.lv}>{earnedCount}/{BADGES.length} badges débloqués</div>
+          <div className={s.lvbar}><i style={{ width: `${Math.round(((points % 150) / 150) * 100)}%` }} /></div>
+        </div>
+        <div className={s.lvbadge}><span className={s.em}>{emoji}</span><b>Niveau {level}</b></div>
+      </div>
+
+      <div className={s.sectionH}><h3>Récompenses</h3><a>{earnedCount}/{BADGES.length}</a></div>
+      <div className={`${s.badgewrap} ${s.r} ${s.r3}`}>
+        {BADGES.map((b) => {
+          const ok = stats ? b.earned(stats) : false;
+          return <div key={b.id} className={`${s.bdg} ${ok ? "" : s.lock}`}>{ok ? b.emoji : "🔒"}<span>{b.label}</span>{ok && <span className={s.bp}>+{b.points}</span>}</div>;
+        })}
+      </div>
+
+      <div className={`${s.prem} ${s.r} ${s.r3}`}>
         <div className={s.ico}><Icon name="diamond" size={22} /></div>
         <div><b>BODYUP Premium</b><span>IA illimitée · plans sportifs · rapports PDF</span></div>
         <button className={s.go}>Essayer</button>

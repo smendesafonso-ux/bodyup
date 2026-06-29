@@ -33,6 +33,8 @@ export interface Profile {
   tdee: number | null;
   calorie_target: number | null;
   onboarded: boolean;
+  points: number | null;
+  level: number | null;
 }
 
 export interface FoodEntry {

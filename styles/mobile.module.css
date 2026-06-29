@@ -263,6 +263,17 @@
 .healthcard span{font-size:12.5px;color:var(--txt-2)}
 .healthcard .ch{margin-left:auto;color:var(--txt-3)}
 
+.gamehdr{display:flex;align-items:center;gap:14px;background:linear-gradient(120deg,rgba(201,255,60,.1),rgba(255,255,255,.02));border:1px solid rgba(201,255,60,.22);border-radius:22px;padding:17px;margin-bottom:6px}
+.gamehdr .gleft{flex:1;min-width:0}
+.gamehdr .pts{font-family:var(--display);font-weight:600;font-size:27px;letter-spacing:-.02em}
+.gamehdr .pts small{font-size:13px;color:var(--txt-2);font-weight:500;font-family:var(--body)}
+.gamehdr .lv{font-size:12.5px;color:var(--txt-2)}
+.gamehdr .lvbadge{display:flex;flex-direction:column;align-items:center;gap:1px;flex:0 0 auto}
+.gamehdr .lvbadge .em{font-size:30px;line-height:1}
+.gamehdr .lvbadge b{font-family:var(--display);font-weight:600;font-size:13px;color:var(--lime)}
+.lvbar{height:7px;border-radius:100px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:9px}
+.lvbar i{display:block;height:100%;border-radius:100px;background:linear-gradient(90deg,var(--lime-deep),var(--lime))}
+.bdg .bp{font-size:9px;color:var(--lime);font-weight:700;margin-top:1px}
 .badgewrap{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-top:6px}
 .bdg{aspect-ratio:1;border-radius:20px;background:var(--card);border:1px solid var(--hair);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:26px}
 .bdg.lock{opacity:.32;font-size:20px}
