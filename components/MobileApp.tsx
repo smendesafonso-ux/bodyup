@@ -23,7 +23,7 @@ type MealKey = "petit-dej" | "dejeuner" | "collation" | "diner";
 const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: "home", label: "Accueil", icon: "home" },
   { id: "journal", label: "Journal", icon: "journal" },
-  { id: "repas", label: "Repas IA", icon: "meals" },
+  { id: "repas", label: "Recettes", icon: "meals" },
   { id: "scan", label: "Scan", icon: "camera" },
   { id: "exo", label: "Exercices", icon: "exo" },
   { id: "coach", label: "Coach IA", icon: "spark" },
@@ -805,7 +805,7 @@ function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile 
   return (
     <>
       <div className={`${s.phead} ${s.r} ${s.r1}`}>
-        <div><div className={s.hi}>Adapté à ton profil et à tes besoins</div><h2>Repas IA</h2></div>
+        <div><div className={s.hi}>Adapté à ton profil et à tes besoins</div><h2>Recettes</h2></div>
         <button className={s.headact} onClick={() => go("courses")} aria-label="Liste de courses"><Icon name="cart" /></button>
       </div>
 
