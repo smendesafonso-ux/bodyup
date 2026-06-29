@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import s from "@/styles/mobile.module.css";
 import { Icon, type IconName } from "./Icon";
@@ -8,6 +8,7 @@ import { CalorieRing } from "./CalorieRing";
 import { fr } from "@/lib/nutrition";
 import { useAuth } from "@/lib/auth";
 import { useDay, type NewFood } from "@/lib/useDay";
+import { searchFoods, type FoodHit } from "@/lib/foods";
 import type { Profile } from "@/lib/supabase";
 import { workouts, recipes, coachThread, coachChips, badges, shoppingList, progressTimeline } from "@/lib/data";
 
@@ -258,20 +259,58 @@ function JournalScreen({ day, onAdd }: { day: Day; onAdd: (m: MealKey) => void }
 /* ---------------- AJOUT D'ALIMENT (modal) ---------------- */
 function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; onClose: () => void; onSave: (f: NewFood) => Promise<void> }) {
   const [meal, setMeal] = useState<MealKey>(defaultMeal);
-  const [name, setName] = useState("");
-  const [kcal, setKcal] = useState("");
-  const [p, setP] = useState("");
-  const [c, setC] = useState("");
-  const [f, setF] = useState("");
-  const [qty, setQty] = useState("");
+  const [mode, setMode] = useState<"search" | "manual">("search");
   const [busy, setBusy] = useState(false);
 
-  const save = async () => {
+  // recherche
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<FoodHit[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [sel, setSel] = useState<FoodHit | null>(null);
+  const [grams, setGrams] = useState("100");
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // saisie manuelle
+  const [name, setName] = useState("");
+  const [kcal, setKcal] = useState("");
+  const [mp, setMp] = useState(""); const [mc, setMc] = useState(""); const [mf, setMf] = useState("");
+  const [qty, setQty] = useState("");
+
+  useEffect(() => {
+    if (sel) return;
+    if (query.trim().length < 2) { setResults([]); return; }
+    setSearching(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(async () => {
+      const r = await searchFoods(query);
+      setResults(r); setSearching(false);
+    }, 350);
+    return () => clearTimeout(timer.current);
+  }, [query, sel]);
+
+  const g = parseFloat(grams) || 0;
+  const factor = g / 100;
+  const calc = sel ? {
+    kcal: Math.round(sel.kcal100 * factor),
+    p: Math.round(sel.p100 * factor),
+    c: Math.round(sel.c100 * factor),
+    f: Math.round(sel.f100 * factor),
+  } : null;
+
+  const saveSearch = async () => {
+    if (!sel || !calc || g <= 0) return;
+    setBusy(true);
+    await onSave({
+      meal_type: meal, name: sel.brand ? `${sel.name} (${sel.brand})` : sel.name, qty: `${g} g`,
+      kcal: calc.kcal, protein: calc.p, carbs: calc.c, fat: calc.f,
+    });
+  };
+  const saveManual = async () => {
     if (!name || !kcal) return;
     setBusy(true);
     await onSave({
       meal_type: meal, name, qty: qty || null,
-      kcal: parseInt(kcal) || 0, protein: parseInt(p) || 0, carbs: parseInt(c) || 0, fat: parseInt(f) || 0,
+      kcal: parseInt(kcal) || 0, protein: parseInt(mp) || 0, carbs: parseInt(mc) || 0, fat: parseInt(mf) || 0,
     });
   };
 
@@ -284,19 +323,74 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
             <button key={m.key} className={meal === m.key ? s.on : ""} onClick={() => setMeal(m.key)}>{m.emoji} {m.name.split("-")[0].split(" ")[0]}</button>
           ))}
         </div>
-        <label>Aliment</label>
-        <input className={s.inp} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex : Poulet grillé + riz" autoFocus />
-        <label>Quantité (optionnel)</label>
-        <input className={s.inp} value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Ex : 320 g" />
-        <label>Calories (kcal)</label>
-        <input className={s.inp} type="number" inputMode="numeric" value={kcal} onChange={(e) => setKcal(e.target.value)} placeholder="520" />
-        <label>Macros (g) — protéines / glucides / lipides</label>
-        <div className={s.row3}>
-          <input className={s.inp} type="number" inputMode="numeric" value={p} onChange={(e) => setP(e.target.value)} placeholder="P" />
-          <input className={s.inp} type="number" inputMode="numeric" value={c} onChange={(e) => setC(e.target.value)} placeholder="G" />
-          <input className={s.inp} type="number" inputMode="numeric" value={f} onChange={(e) => setF(e.target.value)} placeholder="L" />
-        </div>
-        <button className={s.savebtn} onClick={save} disabled={busy || !name || !kcal}>{busy ? "Ajout…" : "Ajouter au journal"}</button>
+
+        {mode === "search" ? (
+          <>
+            {!sel && (
+              <>
+                <label>Rechercher un aliment</label>
+                <input className={s.inp} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ex : poulet, banane, Nutella…" autoFocus />
+                {searching && <div className={s.searching}><span className={s.sp} /> Recherche…</div>}
+                {!searching && results.length > 0 && (
+                  <div className={s.results}>
+                    {results.map((r, i) => (
+                      <div key={i} className={s.ritem} onClick={() => { setSel(r); setResults([]); }}>
+                        <div className={s.rn}>
+                          <b>{r.name}</b>
+                          <span>{r.brand ? `${r.brand} · ` : ""}{r.kcal100} kcal / 100 g</span>
+                        </div>
+                        <span className={`${s.srcbadge} ${r.source === "base" ? s.srcbase : s.srcoff}`}>{r.source === "base" ? "BODYUP" : "OFF"}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!searching && query.trim().length >= 2 && results.length === 0 && (
+                  <div className={s.empty2}>Aucun résultat — essaie un autre terme ou la saisie manuelle.</div>
+                )}
+              </>
+            )}
+
+            {sel && calc && (
+              <>
+                <div className={s.selfood}>
+                  <div className={s.sn}><b>{sel.name}</b><span>{sel.brand ? `${sel.brand} · ` : ""}{sel.kcal100} kcal / 100 g</span></div>
+                  <button className={s.clear} onClick={() => { setSel(null); setGrams("100"); }} aria-label="Changer">✕</button>
+                </div>
+                <label>Quantité</label>
+                <div className={s.gramrow}>
+                  <input className={s.inp} type="number" inputMode="numeric" value={grams} onChange={(e) => setGrams(e.target.value)} />
+                  <span className={s.u}>grammes</span>
+                </div>
+                <div className={s.calcprev}>
+                  <div><b>{calc.kcal}</b><span>kcal</span></div>
+                  <div><b>{calc.p}g</b><span>prot</span></div>
+                  <div><b>{calc.c}g</b><span>gluc</span></div>
+                  <div><b>{calc.f}g</b><span>lip</span></div>
+                </div>
+                <button className={s.savebtn} onClick={saveSearch} disabled={busy || g <= 0}>{busy ? "Ajout…" : "Ajouter au journal"}</button>
+              </>
+            )}
+
+            <button className={s.switchmode} onClick={() => setMode("manual")}>Pas dans la liste ? <u>Saisie manuelle</u></button>
+          </>
+        ) : (
+          <>
+            <label>Aliment</label>
+            <input className={s.inp} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex : Poulet grillé + riz" autoFocus />
+            <label>Quantité (optionnel)</label>
+            <input className={s.inp} value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Ex : 320 g" />
+            <label>Calories (kcal)</label>
+            <input className={s.inp} type="number" inputMode="numeric" value={kcal} onChange={(e) => setKcal(e.target.value)} placeholder="520" />
+            <label>Macros (g) — protéines / glucides / lipides</label>
+            <div className={s.row3}>
+              <input className={s.inp} type="number" inputMode="numeric" value={mp} onChange={(e) => setMp(e.target.value)} placeholder="P" />
+              <input className={s.inp} type="number" inputMode="numeric" value={mc} onChange={(e) => setMc(e.target.value)} placeholder="G" />
+              <input className={s.inp} type="number" inputMode="numeric" value={mf} onChange={(e) => setMf(e.target.value)} placeholder="L" />
+            </div>
+            <button className={s.savebtn} onClick={saveManual} disabled={busy || !name || !kcal}>{busy ? "Ajout…" : "Ajouter au journal"}</button>
+            <button className={s.switchmode} onClick={() => setMode("search")}><u>← Revenir à la recherche</u></button>
+          </>
+        )}
       </div>
     </div>
   );
