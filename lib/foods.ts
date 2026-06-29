@@ -39,7 +39,10 @@ async function searchOFF(q: string): Promise<FoodHit[]> {
       page_size: "15", fields: "product_name,product_name_fr,brands,nutriments",
     }).toString();
   try {
-    const res = await fetch(url);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 6000);
+    const res = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(t);
     if (!res.ok) return [];
     const json = await res.json();
     const out: FoodHit[] = [];
