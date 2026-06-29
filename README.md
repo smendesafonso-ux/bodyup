@@ -12,6 +12,17 @@ npm run dev
 
 Puis ouvrir http://localhost:3000
 
+### Tests
+
+```bash
+npm test          # lance la suite Vitest (lib/nutrition.ts)
+npm run test:watch
+```
+
+Le moteur nutritionnel est couvert par 11 tests unitaires (BMR homme/femme,
+TDEE, déficit/surplus, estimation de date, garde-fou « objectif irréaliste »,
+bascule maintien). Étant une fonction pure, il se teste sans mock ni DOM.
+
 ## Routes
 
 | Route          | Écran                                                        |
