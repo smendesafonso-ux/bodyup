@@ -13,8 +13,10 @@ import { searchFoods, lookupBarcode, type FoodHit } from "@/lib/foods";
 import { analyzeFoodPhoto, type FoodAnalysis } from "@/lib/vision";
 import { suggestMeals, type AiMeal } from "@/lib/meals";
 import type { Profile } from "@/lib/supabase";
-import { coachThread, coachChips, badges, shoppingList, progressTimeline } from "@/lib/data";
+import { coachThread, coachChips, badges, progressTimeline } from "@/lib/data";
 import { exercises, intensityClass, type Exercise, type Intensity } from "@/lib/exercises";
+import { loadPantry, addPantryItem, addManyToBuy, setPantryStatus, removePantryItem, searchCatalog, STAPLES, type PantryItem } from "@/lib/pantry";
+import { mealCategories, mealsByCategory, mealLookup, type MealLite, type MealFull } from "@/lib/themealdb";
 
 type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil" | "courses" | "progress";
 type Day = ReturnType<typeof useDay>;
@@ -770,6 +772,7 @@ function RecipeModal({ meal, added, onClose, onAdd, onCart }: { meal: AiMeal; ad
 }
 
 function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile | null; target: number; go: (t: Tab) => void }) {
+  const [mode, setMode] = useState<"ia" | "explorer">("ia");
   const [mi, setMi] = useState(0);
   const [meals, setMeals] = useState<AiMeal[]>([]);
   const [loading, setLoading] = useState(false);
@@ -808,6 +811,13 @@ function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile 
         <div><div className={s.hi}>Adapté à ton profil et à tes besoins</div><h2>Recettes</h2></div>
         <button className={s.headact} onClick={() => go("courses")} aria-label="Liste de courses"><Icon name="cart" /></button>
       </div>
+
+      <div className={`${s.subtoggle} ${s.r} ${s.r2}`}>
+        <button className={mode === "ia" ? s.on : ""} onClick={() => setMode("ia")}><Icon name="spark" size={16} />Recettes IA</button>
+        <button className={mode === "explorer" ? s.on : ""} onClick={() => setMode("explorer")}><Icon name="meals" size={16} />Explorer</button>
+      </div>
+
+      {mode === "explorer" ? <Explorer go={go} /> : <>
 
       <div className={`${s.mealtabs} ${s.r} ${s.r2}`}>
         {MEAL_TABS.map((t, i) => <div key={t.key} className={`${s.mtab} ${mi === i ? s.on : ""}`} onClick={() => { setMi(i); setMeals([]); setErr(null); }}>{t.label}</div>)}
@@ -866,7 +876,74 @@ function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile 
           onCart={() => { setDetail(null); go("courses"); }}
         />
       )}
+      </>}
     </>
+  );
+}
+
+/* ---------------- EXPLORER RECETTES (TheMealDB) ---------------- */
+function Explorer({ go }: { go: (t: Tab) => void }) {
+  const { user } = useAuth();
+  const [cats, setCats] = useState<string[]>([]);
+  const [cat, setCat] = useState("Chicken");
+  const [meals, setMeals] = useState<MealLite[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [detail, setDetail] = useState<MealFull | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  useEffect(() => { mealCategories().then((c) => { if (c.length) setCats(c); }); }, []);
+  useEffect(() => { setLoading(true); mealsByCategory(cat).then((m) => { setMeals(m); setLoading(false); }); }, [cat]);
+
+  const open = async (id: string) => { setLoadingDetail(true); setDetail(null); const m = await mealLookup(id); setDetail(m); setLoadingDetail(false); };
+  const list = cats.length ? cats : ["Chicken", "Beef", "Seafood", "Vegetarian", "Pasta", "Dessert", "Breakfast"];
+
+  return (
+    <>
+      <div className={`${s.exfrow} ${s.r} ${s.r3}`}>
+        {list.map((c) => <span key={c} className={`${s.ef} ${cat === c ? s.on : ""}`} onClick={() => setCat(c)}>{c}</span>)}
+      </div>
+      {loading ? (
+        <div className={s.explload}><div className={s.gsp} />Chargement des recettes…</div>
+      ) : (
+        <div className={`${s.rgrid} ${s.r} ${s.r4}`}>
+          {meals.map((m) => (
+            <div key={m.id} className={s.rcard} onClick={() => open(m.id)}>
+              <img src={m.thumb} alt={m.title} loading="lazy" />
+              <div className={s.rt}>{m.title}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {(detail || loadingDetail) && <MealDetail meal={detail} loading={loadingDetail} userId={user?.id} onClose={() => { setDetail(null); setLoadingDetail(false); }} go={go} />}
+    </>
+  );
+}
+
+function MealDetail({ meal, loading, userId, onClose, go }: { meal: MealFull | null; loading: boolean; userId?: string; onClose: () => void; go: (t: Tab) => void }) {
+  const [added, setAdded] = useState(false);
+  return (
+    <div className={s.modalwrap} onClick={onClose}>
+      <div className={`${s.sheet} ${s.rsheet}`} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}><span className={s.x} onClick={onClose}>✕</span></div>
+        {loading || !meal ? (
+          <div className={s.explload}><div className={s.gsp} />Chargement de la recette…</div>
+        ) : (
+          <>
+            <img className={s.mphoto} src={meal.thumb} alt={meal.title} />
+            <h3 style={{ fontFamily: "var(--display)", fontWeight: 600, fontSize: 20, marginBottom: 9 }}>{meal.title}</h3>
+            <div className={s.mmeta}><span>{meal.category}</span>{meal.area ? <span>{meal.area}</span> : null}</div>
+            <div className={s.rsec}>Ingrédients</div>
+            <ul className={s.ringlist}>{meal.ingredients.map((x, i) => <li key={i}>{x.measure ? `${x.measure} · ` : ""}{x.name}</li>)}</ul>
+            <button className={s.savebtn} style={{ marginTop: 14 }} disabled={added || !userId} onClick={async () => { if (!userId) return; await addManyToBuy(userId, meal.ingredients.map((x) => ({ name: x.name }))); setAdded(true); }}>
+              <Icon name={added ? "check" : "cart"} size={16} /> {added ? "Ajouté aux courses ✓" : "Ajouter les ingrédients aux courses"}
+            </button>
+            <button className={s.switchmode} onClick={() => { onClose(); go("courses"); }}>Voir ma liste de courses</button>
+            <div className={s.rsec}>Préparation</div>
+            <ol className={s.rsteps}>{meal.steps.map((x, i) => <li key={i}>{x}</li>)}</ol>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -1105,47 +1182,97 @@ function ProfRow({ icon, label, val, chevron }: { icon: IconName; label: string;
   );
 }
 
-/* ---------------- LISTE DE COURSES (démo) ---------------- */
+/* ---------------- GARDE-MANGER & LISTE DE COURSES ---------------- */
+const QUICK_ADD = ["Sel", "Poivre", "Huile d'olive", "Œufs", "Lait", "Beurre", "Riz", "Pâtes", "Farine", "Oignon", "Ail en poudre", "Tomate"];
+const catOf = (name: string) => STAPLES.find((c) => c.items.includes(name))?.category ?? "Autre";
+
 function CoursesScreen({ back }: { back: () => void }) {
-  const initial = new Set<string>();
-  shoppingList.forEach((a) => a.items.forEach((it) => { if (it.checked) initial.add(`${a.rayon}-${it.name}`); }));
-  const [checked, setChecked] = useState<Set<string>>(initial);
-  const total = shoppingList.reduce((n, a) => n + a.items.length, 0);
-  const toggle = (key: string) => setChecked((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
-  const delay = [s.r2, s.r3, s.r4, s.r5];
+  const { user } = useAuth();
+  const [tab, setTab] = useState<"buy" | "have">("buy");
+  const [items, setItems] = useState<PantryItem[]>([]);
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<{ name: string; category: string }[]>([]);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const load = useCallback(async () => { if (user) setItems(await loadPantry(user.id)); }, [user]);
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (q.trim().length < 1) { setResults([]); return; }
+    clearTimeout(timer.current);
+    timer.current = setTimeout(async () => setResults(await searchCatalog(q)), 250);
+    return () => clearTimeout(timer.current);
+  }, [q]);
+
+  const add = async (name: string, category: string) => {
+    if (!user) return;
+    if (items.some((i) => i.name.toLowerCase() === name.toLowerCase() && i.status === tab)) { setQ(""); setResults([]); return; }
+    const it = await addPantryItem(user.id, name, category, tab);
+    if (it) setItems((p) => [...p, it]);
+    setQ(""); setResults([]);
+  };
+  const toggle = async (it: PantryItem) => {
+    const ns: "have" | "buy" = it.status === "buy" ? "have" : "buy";
+    setItems((p) => p.map((x) => (x.id === it.id ? { ...x, status: ns } : x)));
+    await setPantryStatus(it.id, ns);
+  };
+  const del = async (it: PantryItem) => { setItems((p) => p.filter((x) => x.id !== it.id)); await removePantryItem(it.id); };
+
+  const current = items.filter((i) => i.status === tab);
+  const buyCount = items.filter((i) => i.status === "buy").length;
+  const haveCount = items.filter((i) => i.status === "have").length;
+  const groups: Record<string, PantryItem[]> = {};
+  current.forEach((i) => { (groups[i.category] ||= []).push(i); });
+
   return (
     <>
       <div className={`${s.subhead} ${s.r} ${s.r1}`}>
         <button className={s.backbtn} onClick={back} aria-label="Retour"><Icon name="arrowLeft" size={18} /></button>
-        <div><div className={s.hi}>Générée depuis tes repas</div><h2>Liste de courses</h2></div>
+        <div><div className={s.hi}>Ce que tu as · ce qu&apos;il te faut</div><h2>Courses</h2></div>
       </div>
-      <div className={`${s.famsync} ${s.r} ${s.r1}`}>
-        <Icon name="fit" size={18} />
-        <span><b>Synchronisation familiale</b> active · 2 membres voient cette liste en temps réel.</span>
+
+      <div className={`${s.pseg} ${s.r} ${s.r1}`}>
+        <button className={tab === "buy" ? s.on : ""} onClick={() => setTab("buy")}><Icon name="cart" size={16} />À acheter <span className={s.cnt2}>{buyCount}</span></button>
+        <button className={tab === "have" ? s.on : ""} onClick={() => setTab("have")}><Icon name="check" size={16} />J&apos;ai <span className={s.cnt2}>{haveCount}</span></button>
       </div>
-      {shoppingList.map((a, i) => (
-        <div key={a.rayon} className={`${s.rayon} ${s.r} ${delay[i]}`}>
-          <div className={s.rayonh}><span className={s.em}>{a.emoji}</span>{a.rayon}<span className={s.ct}>{a.items.length} articles</span></div>
-          <div className={s.slist}>
-            {a.items.map((it) => {
-              const key = `${a.rayon}-${it.name}`; const done = checked.has(key);
-              return (
-                <div key={it.name} className={`${s.sitem} ${done ? s.done : ""}`} onClick={() => toggle(key)}>
-                  <span className={s.cbox}><Icon name="check" size={13} /></span>
-                  <span className={s.snm}>{it.name}</span><span className={s.sqty}>{it.qty}</span>
+
+      <div className={`${s.paddrow} ${s.r} ${s.r2}`}>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={tab === "buy" ? "Ajouter à la liste de courses…" : "Ajouter à mon garde-manger…"} />
+      </div>
+      {results.length > 0 && (
+        <div className={s.results}>
+          {results.map((r) => (
+            <div key={r.name} className={s.ritem} onClick={() => add(r.name, r.category)}>
+              <div className={s.rn}><b>{r.name}</b><span>{r.category}</span></div>
+              <Icon name="plus" size={16} />
+            </div>
+          ))}
+        </div>
+      )}
+      {q.trim().length < 1 && (
+        <div className={`${s.staplechips} ${s.r} ${s.r2}`}>
+          {QUICK_ADD.map((n) => <span key={n} onClick={() => add(n, catOf(n))}>+ {n}</span>)}
+        </div>
+      )}
+
+      {current.length === 0 ? (
+        <div className={s.pempty}>{tab === "buy" ? "Ta liste de courses est vide. Ajoute des produits ci-dessus, ou les ingrédients d'une recette." : "Ton garde-manger est vide. Ajoute ce que tu as déjà (épices, basiques…)."}</div>
+      ) : (
+        Object.entries(groups).map(([cat, arr]) => (
+          <div key={cat} className={`${s.r} ${s.r3}`}>
+            <div className={s.psect}>{cat}<span className={s.pc}>{arr.length}</span></div>
+            <div>
+              {arr.map((it) => (
+                <div key={it.id} className={`${s.pitem} ${it.status === "have" ? s.got : ""}`}>
+                  <span className={s.pck} onClick={() => toggle(it)} aria-label={it.status === "buy" ? "Marquer acheté" : "À racheter"}><Icon name="check" size={12} /></span>
+                  <span className={s.pn}>{it.name}</span>
+                  <button className={s.px} onClick={() => del(it)} aria-label="Supprimer">✕</button>
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
-      <div className={s.sfoot}>
-        <div className={s.sprog}>
-          <div className={s.bar}><i style={{ width: `${(checked.size / total) * 100}%` }} /></div>
-          <span>{checked.size} / {total} articles cochés</span>
-        </div>
-        <button className={s.share} aria-label="Partager la liste"><Icon name="send" size={20} /></button>
-      </div>
+        ))
+      )}
     </>
   );
 }
