@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#070A08" />
+<title>BODYUP — Onboarding</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --bg:#070A08;--surface:#11160F;--surface-2:#161C13;
+  --card:rgba(255,255,255,.035);--card-bd:rgba(255,255,255,.08);--hair:rgba(255,255,255,.06);
+  --lime:#C9FF3C;--lime-deep:#8FBF12;--coral:#FF7A53;--sky:#5BD1FF;--violet:#B79BFF;--amber:#FFC24B;
+  --txt:#F1F5EC;--txt-2:#9AA59A;--txt-3:#5E6A5E;
+  --display:'Clash Display','Hanken Grotesk',sans-serif;--body:'Hanken Grotesk',system-ui,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:var(--body);color:var(--txt);
+  background:
+    radial-gradient(900px 600px at 80% -5%,rgba(201,255,60,.10),transparent 55%),
+    radial-gradient(700px 560px at -10% 30%,rgba(91,209,255,.07),transparent 55%),
+    radial-gradient(800px 700px at 50% 120%,rgba(255,122,83,.07),transparent 55%),
+    #05060A;
+  min-height:100vh;display:grid;place-items:center;padding:28px 16px;overflow-x:hidden;
+}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+  opacity:.025;mix-blend-mode:overlay}
+
+.phone{
+  position:relative;z-index:1;width:390px;height:830px;max-height:94vh;
+  background:linear-gradient(170deg,#1b211a,#0a0d09);border-radius:54px;padding:13px;
+  box-shadow:0 50px 120px -30px rgba(0,0,0,.9),0 0 0 1.5px rgba(255,255,255,.05),inset 0 0 0 2px rgba(0,0,0,.6);
+}
+@media(max-width:430px){body{padding:0}.phone{width:100vw;height:100dvh;max-height:none;border-radius:0;padding:0;box-shadow:none}}
+.screen{position:relative;width:100%;height:100%;overflow:hidden;background:var(--bg);border-radius:42px;display:flex;flex-direction:column}
+@media(max-width:430px){.screen{border-radius:0}}
+
+/* top: progress */
+.top{padding:22px 26px 6px;flex:0 0 auto}
+.toprow{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.back{width:38px;height:38px;border-radius:12px;background:var(--card);border:1px solid var(--card-bd);display:grid;place-items:center;flex:0 0 auto}
+.back svg{width:18px;height:18px;stroke:var(--txt)}
+.back[disabled]{opacity:.3}
+.pbar{flex:1;height:6px;border-radius:100px;background:rgba(255,255,255,.08);overflow:hidden}
+.pbar i{display:block;height:100%;border-radius:100px;background:linear-gradient(90deg,var(--lime-deep),var(--lime));width:14%;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.stepno{font-size:13px;font-weight:600;color:var(--txt-2);min-width:42px;text-align:right}
+
+/* body */
+.flow{flex:1;position:relative;overflow:hidden}
+.step{position:absolute;inset:0;padding:14px 26px 26px;display:flex;flex-direction:column;
+  opacity:0;transform:translateX(40px);pointer-events:none;transition:opacity .45s ease,transform .45s cubic-bezier(.2,.8,.2,1);overflow-y:auto;scrollbar-width:none}
+.step::-webkit-scrollbar{display:none}
+.step.active{opacity:1;transform:none;pointer-events:auto}
+.step.left{transform:translateX(-40px)}
+.kicker{font-size:13px;font-weight:600;color:var(--lime);letter-spacing:.04em;text-transform:uppercase;margin-bottom:10px}
+.step h1{font-family:var(--display);font-weight:600;font-size:30px;line-height:1.05;letter-spacing:-.02em;margin-bottom:10px}
+.step .sub{font-size:14.5px;color:var(--txt-2);line-height:1.5;margin-bottom:26px}
+
+/* welcome */
+.welcome{justify-content:center;align-items:center;text-align:center}
+.wlogo{width:88px;height:88px;border-radius:28px;background:linear-gradient(150deg,var(--lime),var(--lime-deep));display:grid;place-items:center;box-shadow:0 16px 50px rgba(201,255,60,.4);margin-bottom:30px;animation:pop .7s cubic-bezier(.2,1.4,.4,1) both}
+.wlogo svg{width:46px;height:46px}
+@keyframes pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
+.welcome h1{font-size:38px}
+.welcome .sub{max-width:300px;margin-bottom:0}
+
+/* choice cards */
+.choices{display:flex;flex-direction:column;gap:12px}
+.choice{display:flex;align-items:center;gap:15px;background:var(--card);border:1.5px solid var(--card-bd);border-radius:20px;padding:17px;cursor:pointer;transition:.2s}
+.choice .ic{width:46px;height:46px;border-radius:14px;background:var(--surface-2);display:grid;place-items:center;font-size:24px;flex:0 0 auto}
+.choice b{font-family:var(--display);font-weight:600;font-size:17px;display:block}
+.choice span{font-size:12.5px;color:var(--txt-2)}
+.choice .tick{margin-left:auto;width:24px;height:24px;border-radius:50%;border:2px solid var(--card-bd);flex:0 0 auto;display:grid;place-items:center}
+.choice .tick svg{width:13px;height:13px;stroke:#0a1400;opacity:0;transition:.2s}
+.choice.sel{border-color:var(--lime);background:rgba(201,255,60,.06)}
+.choice.sel .ic{background:rgba(201,255,60,.14)}
+.choice.sel .tick{background:var(--lime);border-color:var(--lime)}
+.choice.sel .tick svg{opacity:1}
+
+/* two-up cards (sexe / objectif compact) */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.gcard{background:var(--card);border:1.5px solid var(--card-bd);border-radius:20px;padding:22px 14px;text-align:center;cursor:pointer;transition:.2s}
+.gcard .em{font-size:38px;display:block;margin-bottom:12px}
+.gcard b{font-family:var(--display);font-weight:600;font-size:16px}
+.gcard.sel{border-color:var(--lime);background:rgba(201,255,60,.07)}
+
+/* stepper number */
+.numwrap{display:flex;flex-direction:column;align-items:center;gap:24px;margin-top:8px}
+.bignum{font-family:var(--display);font-weight:600;font-size:84px;line-height:1;letter-spacing:-.03em}
+.bignum small{font-size:26px;color:var(--txt-2);font-weight:500;font-family:var(--body)}
+.stepctrl{display:flex;align-items:center;gap:20px}
+.stepctrl button{width:58px;height:58px;border-radius:20px;background:var(--card);border:1px solid var(--card-bd);color:var(--txt);font-size:30px;font-weight:300;display:grid;place-items:center}
+.stepctrl button:active{background:rgba(201,255,60,.1)}
+
+/* sliders */
+.field{margin-bottom:26px}
+.fieldhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px}
+.fieldhead label{font-size:14px;font-weight:600;color:var(--txt-2)}
+.fieldhead .out{font-family:var(--display);font-weight:600;font-size:26px;letter-spacing:-.01em}
+.fieldhead .out small{font-size:15px;color:var(--txt-2);font-weight:500;font-family:var(--body)}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:8px;border-radius:100px;background:rgba(255,255,255,.1);outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:30px;height:30px;border-radius:50%;background:var(--lime);border:5px solid #0c100d;box-shadow:0 4px 14px rgba(201,255,60,.5);cursor:pointer}
+input[type=range]::-moz-range-thumb{width:30px;height:30px;border-radius:50%;background:var(--lime);border:5px solid #0c100d;box-shadow:0 4px 14px rgba(201,255,60,.5);cursor:pointer}
+.gap{display:flex;justify-content:space-between;font-size:11.5px;color:var(--txt-3);margin-top:8px}
+
+/* allergy chips */
+.tags{display:flex;flex-wrap:wrap;gap:9px}
+.tag{font-size:13.5px;font-weight:500;color:var(--txt);padding:11px 15px;border:1.5px solid var(--card-bd);border-radius:100px;background:var(--card);cursor:pointer;transition:.2s;display:flex;align-items:center;gap:7px}
+.tag.sel{border-color:var(--lime);background:rgba(201,255,60,.1);color:var(--lime)}
+.tag .x{font-size:15px}
+
+/* date */
+.daterow{display:flex;gap:10px}
+.datecard{flex:1;background:var(--card);border:1.5px solid var(--card-bd);border-radius:18px;padding:15px;text-align:center;cursor:pointer;transition:.2s}
+.datecard b{font-family:var(--display);font-weight:600;font-size:18px;display:block}
+.datecard span{font-size:11.5px;color:var(--txt-2)}
+.datecard.sel{border-color:var(--lime);background:rgba(201,255,60,.07)}
+
+/* result */
+.result{justify-content:flex-start}
+.resring{display:flex;justify-content:center;margin:6px 0 22px}
+.resring .ring{position:relative;width:170px;height:170px}
+.resring svg{transform:rotate(-90deg)}
+.resring .mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.resring .big{font-family:var(--display);font-weight:600;font-size:42px;line-height:1;letter-spacing:-.02em}
+.resring .lbl{font-size:11px;color:var(--txt-2);text-transform:uppercase;letter-spacing:.1em;margin-top:5px}
+.reslist{display:flex;flex-direction:column;gap:0;background:var(--card);border:1px solid var(--hair);border-radius:22px;overflow:hidden;margin-bottom:14px}
+.resrow{display:flex;align-items:center;gap:13px;padding:15px 17px;border-bottom:1px solid var(--hair)}
+.resrow:last-child{border-bottom:none}
+.resrow .ic{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;flex:0 0 auto}
+.resrow .ic svg{width:17px;height:17px}
+.resrow .nm{font-size:14px;color:var(--txt-2)}
+.resrow .vv{margin-left:auto;font-family:var(--display);font-weight:600;font-size:18px}
+.warn{display:flex;gap:11px;background:rgba(255,194,75,.1);border:1px solid rgba(255,194,75,.28);border-radius:18px;padding:14px;font-size:13px;line-height:1.5;color:var(--txt)}
+.warn svg{width:20px;height:20px;flex:0 0 auto;stroke:var(--amber)}
+.warn.ok{background:rgba(201,255,60,.08);border-color:rgba(201,255,60,.25)}
+.warn.ok svg{stroke:var(--lime)}
+
+/* footer cta */
+.foot{padding:14px 26px calc(26px + env(safe-area-inset-bottom));flex:0 0 auto;background:linear-gradient(180deg,transparent,var(--bg) 30%)}
+.cta{width:100%;border:none;border-radius:18px;padding:17px;font-family:var(--display);font-weight:600;font-size:17px;background:var(--lime);color:#0a1400;display:flex;align-items:center;justify-content:center;gap:9px;transition:.15s}
+.cta:active{transform:scale(.98)}
+.cta svg{width:19px;height:19px}
+.cta[disabled]{opacity:.35}
+.skip{display:block;width:100%;text-align:center;margin-top:13px;font-size:13.5px;color:var(--txt-3);font-weight:500;background:none;border:none}
+</style>
+</head>
+<body>
+<div class="phone"><div class="screen">
+
+  <div class="top">
+    <div class="toprow">
+      <button class="back" id="back" disabled><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <div class="pbar"><i id="pfill"></i></div>
+      <span class="stepno" id="stepno">1/7</span>
+    </div>
+  </div>
+
+  <div class="flow" id="flow">
+
+    <!-- 0 welcome -->
+    <section class="step active welcome" data-step="0">
+      <div class="wlogo"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#0a1400" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h1>Bienvenue sur<br>BODYUP</h1>
+      <p class="sub">Réponds à 6 questions rapides. Notre IA calcule ton plan calorique personnalisé en moins d'une minute.</p>
+    </section>
+
+    <!-- 1 sexe -->
+    <section class="step" data-step="1">
+      <div class="kicker">Étape 1</div>
+      <h1>Tu es…</h1>
+      <p class="sub">Cette donnée affine le calcul de ton métabolisme.</p>
+      <div class="grid2" data-single="sexe">
+        <div class="gcard" data-val="homme"><span class="em">👨</span><b>Homme</b></div>
+        <div class="gcard" data-val="femme"><span class="em">👩</span><b>Femme</b></div>
+      </div>
+    </section>
+
+    <!-- 2 age + taille -->
+    <section class="step" data-step="2">
+      <div class="kicker">Étape 2</div>
+      <h1>Ton profil</h1>
+      <p class="sub">Glisse pour ajuster ton âge et ta taille.</p>
+      <div class="field">
+        <div class="fieldhead"><label>Âge</label><span class="out"><span id="ageOut">34</span> <small>ans</small></span></div>
+        <input type="range" id="age" min="14" max="90" value="34" />
+        <div class="gap"><span>14</span><span>90</span></div>
+      </div>
+      <div class="field">
+        <div class="fieldhead"><label>Taille</label><span class="out"><span id="hOut">178</span> <small>cm</small></span></div>
+        <input type="range" id="height" min="130" max="220" value="178" />
+        <div class="gap"><span>130</span><span>220</span></div>
+      </div>
+    </section>
+
+    <!-- 3 poids actuel + cible -->
+    <section class="step" data-step="3">
+      <div class="kicker">Étape 3</div>
+      <h1>Ton poids</h1>
+      <p class="sub">Actuel et objectif — l'IA en déduit l'écart à combler.</p>
+      <div class="field">
+        <div class="fieldhead"><label>Poids actuel</label><span class="out"><span id="wOut">79</span> <small>kg</small></span></div>
+        <input type="range" id="weight" min="40" max="160" value="79" />
+        <div class="gap"><span>40</span><span>160</span></div>
+      </div>
+      <div class="field">
+        <div class="fieldhead"><label>Poids cible</label><span class="out" style="color:var(--lime)"><span id="twOut">74</span> <small>kg</small></span></div>
+        <input type="range" id="target" min="40" max="160" value="74" />
+        <div class="gap"><span>40</span><span>160</span></div>
+      </div>
+    </section>
+
+    <!-- 4 objectif -->
+    <section class="step" data-step="4">
+      <div class="kicker">Étape 4</div>
+      <h1>Ton objectif</h1>
+      <p class="sub">On adapte ton budget calorique en conséquence.</p>
+      <div class="choices" data-single="goal">
+        <div class="choice" data-val="perte"><div class="ic">📉</div><div><b>Perdre du poids</b><span>Déficit calorique progressif</span></div><div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg></div></div>
+        <div class="choice" data-val="maintien"><div class="ic">⚖️</div><div><b>Maintenir mon poids</b><span>Équilibre énergétique</span></div><div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg></div></div>
+        <div class="choice" data-val="masse"><div class="ic">📈</div><div><b>Prendre de la masse</b><span>Surplus calorique maîtrisé</span></div><div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg></div></div>
+      </div>
+    </section>
+
+    <!-- 5 activité -->
+    <section class="step" data-step="5">
+      <div class="kicker">Étape 5</div>
+      <h1>Ton activité</h1>
+      <p class="sub">À quelle fréquence bouges-tu dans une semaine type ?</p>
+      <div class="choices" data-single="act">
+        <div class="choice" data-val="1.2"><div class="ic">🪑</div><div><b>Sédentaire</b><span>Peu ou pas d'exercice</span></div><div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg></div></div>
+        <div class="choice" data-val="1.375"><div class="ic">🚶</div><div><b>Léger</b><span>1 à 3 séances / semaine</span></div><div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg></div></div>
+        <div class="choice" data-val="1.55"><div class="ic">🏃</div><div><b>Modéré</b><span>3 à 5 séances / semaine</span></div><div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg></div></div>
+        <div class="choice" data-val="1.725"><div class="ic">🔥</div><div><b>Intense</b><span>6 à 7 séances / semaine</span></div><div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg></div></div>
+      </div>
+    </section>
+
+    <!-- 6 régime + allergies + rythme -->
+    <section class="step" data-step="6">
+      <div class="kicker">Étape 6</div>
+      <h1>Préférences</h1>
+      <p class="sub">Régime, allergies et rythme souhaité. Tout est optionnel.</p>
+      <div class="field">
+        <div class="fieldhead"><label>Régime alimentaire</label></div>
+        <div class="tags" data-single="diet">
+          <span class="tag sel" data-val="omnivore">Omnivore</span>
+          <span class="tag" data-val="vege">Végétarien</span>
+          <span class="tag" data-val="vegan">Vegan</span>
+          <span class="tag" data-val="keto">Keto</span>
+          <span class="tag" data-val="medit">Méditerranéen</span>
+        </div>
+      </div>
+      <div class="field">
+        <div class="fieldhead"><label>Allergies & exclusions</label></div>
+        <div class="tags" data-multi="allergies">
+          <span class="tag" data-val="gluten">Gluten</span>
+          <span class="tag" data-val="lactose">Lactose</span>
+          <span class="tag" data-val="arachide">Arachides</span>
+          <span class="tag" data-val="fruits-mer">Fruits de mer</span>
+          <span class="tag" data-val="oeuf">Œufs</span>
+          <span class="tag" data-val="soja">Soja</span>
+        </div>
+      </div>
+      <div class="field" id="paceField">
+        <div class="fieldhead"><label>Rythme visé</label></div>
+        <div class="daterow" data-single="pace">
+          <div class="datecard" data-val="0.25"><b>0.25 kg</b><span>/ semaine · doux</span></div>
+          <div class="datecard sel" data-val="0.5"><b>0.5 kg</b><span>/ semaine · sain</span></div>
+          <div class="datecard" data-val="0.75"><b>0.75 kg</b><span>/ semaine · soutenu</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 7 result -->
+    <section class="step result" data-step="7">
+      <div class="kicker">Ton plan personnalisé</div>
+      <h1 id="resTitle">C'est prêt, Sébastien.</h1>
+      <div class="resring">
+        <div class="ring">
+          <svg width="170" height="170" viewBox="0 0 170 170">
+            <circle cx="85" cy="85" r="72" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="14"/>
+            <circle id="resRing" cx="85" cy="85" r="72" fill="none" stroke="var(--lime)" stroke-width="14" stroke-linecap="round" stroke-dasharray="452.4" stroke-dashoffset="452.4"/>
+          </svg>
+          <div class="mid"><span class="big" id="resCal">0</span><span class="lbl">kcal / jour</span></div>
+        </div>
+      </div>
+      <div class="reslist">
+        <div class="resrow"><div class="ic" style="background:rgba(91,209,255,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--sky)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></div><span class="nm">Métabolisme basal (BMR)</span><span class="vv" id="resBmr">—</span></div>
+        <div class="resrow"><div class="ic" style="background:rgba(255,194,75,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-8"/></svg></div><span class="nm">Dépense quotidienne (TDEE)</span><span class="vv" id="resTdee">—</span></div>
+        <div class="resrow"><div class="ic" style="background:rgba(255,122,83,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--coral)" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div><span class="nm" id="resDefLbl">Déficit quotidien</span><span class="vv" id="resDef">—</span></div>
+        <div class="resrow"><div class="ic" style="background:rgba(201,255,60,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2" stroke-linecap="round"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4M16 3v4M4 11h16"/></svg></div><span class="nm">Date estimée d'atteinte</span><span class="vv" id="resDate">—</span></div>
+      </div>
+      <div class="warn ok" id="resWarn"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg><span id="resWarnTxt">Objectif réaliste et sain. On y va !</span></div>
+    </section>
+
+  </div>
+
+  <div class="foot">
+    <button class="cta" id="next">Commencer <svg viewBox="0 0 24 24" fill="none" stroke="#0a1400" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+    <button class="skip" id="skip">Passer pour l'instant</button>
+  </div>
+
+</div></div>
+
+<script>
+const data={sexe:'homme',age:34,height:178,weight:79,target:74,goal:'perte',act:'1.55',diet:'omnivore',allergies:[],pace:'0.5'};
+let step=0;const TOTAL=7;
+const steps=document.querySelectorAll('.step');
+const pfill=document.getElementById('pfill'),stepno=document.getElementById('stepno');
+const back=document.getElementById('back'),next=document.getElementById('next'),skip=document.getElementById('skip');
+
+function render(dir){
+  steps.forEach(s=>{
+    const n=+s.dataset.step;
+    s.classList.remove('active','left');
+    if(n===step)s.classList.add('active');
+    else if(n<step)s.classList.add('left');
+  });
+  pfill.style.width=((step)/(TOTAL)*100||4)+'%';
+  stepno.textContent=Math.min(step+1,TOTAL+1)+'/'+(TOTAL+1);
+  back.disabled=step===0;
+  skip.style.display=step===0?'block':'none';
+  if(step===0)next.firstChild.textContent='Commencer ';
+  else if(step===TOTAL-1)next.firstChild.textContent='Voir mon plan ';
+  else if(step===TOTAL){next.firstChild.textContent='Entrer dans BODYUP ';}
+  else next.firstChild.textContent='Continuer ';
+  validate();
+}
+function validate(){
+  let ok=true;
+  if(step===1&&!data.sexe)ok=false;
+  if(step===4&&!data.goal)ok=false;
+  if(step===5&&!data.act)ok=false;
+  next.disabled=!ok;
+}
+
+/* single-select groups */
+document.querySelectorAll('[data-single]').forEach(grp=>{
+  const key=grp.dataset.single;
+  grp.querySelectorAll('.gcard,.choice,.tag,.datecard').forEach(el=>{
+    el.addEventListener('click',()=>{
+      grp.querySelectorAll('.sel').forEach(x=>x.classList.remove('sel'));
+      el.classList.add('sel');data[key]=el.dataset.val;validate();
+    });
+  });
+});
+/* multi */
+document.querySelectorAll('[data-multi]').forEach(grp=>{
+  const key=grp.dataset.multi;
+  grp.querySelectorAll('.tag').forEach(el=>{
+    el.addEventListener('click',()=>{
+      el.classList.toggle('sel');
+      data[key]=[...grp.querySelectorAll('.sel')].map(x=>x.dataset.val);
+    });
+  });
+});
+/* sliders */
+function bind(id,out,key){const r=document.getElementById(id),o=document.getElementById(out);
+  r.addEventListener('input',()=>{o.textContent=r.value;data[key]=+r.value;});}
+bind('age','ageOut','age');bind('height','hOut','height');
+bind('weight','wOut','weight');bind('target','twOut','target');
+
+/* nav */
+next.addEventListener('click',()=>{
+  if(step<TOTAL){step++;render();if(step===TOTAL)compute();}
+  else{next.firstChild.textContent='Bienvenue 🎉 ';try{localStorage.setItem('bodyup_onboarded','1')}catch(e){}setTimeout(()=>location.href='index.html',650);}
+});
+skip.addEventListener('click',()=>location.href='index.html');
+back.addEventListener('click',()=>{if(step>0){step--;render();}});
+
+/* ---- calcul Mifflin-St Jeor ---- */
+function compute(){
+  const{sexe,age,height,weight,target,goal,act,pace}=data;
+  const bmr=Math.round(10*weight+6.25*height-5*age+(sexe==='homme'?5:-161));
+  const tdee=Math.round(bmr*parseFloat(act));
+  const diffKg=weight-target;
+  let calTarget,dailyDelta,defLbl='Déficit quotidien',weeks=0,realistic=true,msg='';
+
+  if(goal==='maintien'||Math.abs(diffKg)<0.5){
+    calTarget=tdee;dailyDelta=0;defLbl='Équilibre';
+    msg='Plan de maintien équilibré. On stabilise ton poids.';
+  }else{
+    const dir=diffKg>0?1:-1;
+    dailyDelta=Math.round(parseFloat(pace)*7700/7); // kcal/jour
+    calTarget=tdee-dir*dailyDelta;
+    weeks=Math.abs(diffKg)/parseFloat(pace);
+    if(dir<0)defLbl='Surplus quotidien';
+    // garde-fous
+    if(calTarget<(sexe==='homme'?1500:1200)){
+      realistic=false;
+      msg='Ce rythme descend sous un apport minimal sain. On recommande un rythme plus doux ou un délai plus long.';
+    }else{
+      msg=(dir>0?'Perte':'Prise')+' de '+parseFloat(pace)+' kg/sem. — un rythme sain et tenable.';
+    }
+  }
+  const date=new Date(2026,5,29);date.setDate(date.getDate()+Math.round(weeks*7));
+  const fmt=date.toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});
+
+  // anneau + compteur
+  const ring=document.getElementById('resRing'),C=452.4;
+  const pct=Math.min(calTarget/tdee,1);
+  ring.style.transition='none';ring.style.strokeDashoffset=C;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{ring.style.transition='stroke-dashoffset 1.5s cubic-bezier(.2,.8,.2,1)';ring.style.strokeDashoffset=C*(1-pct);}));
+  count('resCal',calTarget);
+  document.getElementById('resBmr').textContent=bmr.toLocaleString('fr-FR');
+  document.getElementById('resTdee').textContent=tdee.toLocaleString('fr-FR');
+  document.getElementById('resDefLbl').textContent=defLbl;
+  document.getElementById('resDef').textContent=dailyDelta?('−'+dailyDelta+' kcal'):'0 kcal';
+  document.getElementById('resDate').textContent=(goal==='maintien'||!weeks)?'En continu':fmt;
+  const warn=document.getElementById('resWarn');
+  warn.className='warn '+(realistic?'ok':'');
+  warn.querySelector('svg').innerHTML=realistic?'<path d="M5 13l4 4L19 7"/>':'<path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>';
+  document.getElementById('resWarnTxt').textContent=msg;
+}
+function count(id,to){const el=document.getElementById(id),t0=performance.now();
+  (function t(n){const k=Math.min((n-t0)/1400,1),e=1-Math.pow(1-k,3);
+    el.textContent=Math.round(to*e).toLocaleString('fr-FR');if(k<1)requestAnimationFrame(t);})(performance.now());}
+
+render();
+</script>
+</body>
+</html>

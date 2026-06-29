@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#070A08" />
+<title>BODYUP — Coach santé IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --bg:#070A08;
+  --ink:#0C100D;
+  --surface:#11160F;
+  --surface-2:#161C13;
+  --card:rgba(255,255,255,.035);
+  --card-bd:rgba(255,255,255,.07);
+  --hair:rgba(255,255,255,.06);
+  --lime:#C9FF3C;
+  --lime-deep:#8FBF12;
+  --coral:#FF7A53;
+  --sky:#5BD1FF;
+  --violet:#B79BFF;
+  --amber:#FFC24B;
+  --txt:#F1F5EC;
+  --txt-2:#9AA59A;
+  --txt-3:#5E6A5E;
+  --display:'Clash Display','Hanken Grotesk',sans-serif;
+  --body:'Hanken Grotesk',system-ui,sans-serif;
+  --r:22px;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:var(--body);
+  background:
+    radial-gradient(900px 600px at 80% -5%, rgba(201,255,60,.10), transparent 55%),
+    radial-gradient(700px 560px at -10% 30%, rgba(91,209,255,.07), transparent 55%),
+    radial-gradient(800px 700px at 50% 120%, rgba(255,122,83,.07), transparent 55%),
+    #05060A;
+  color:var(--txt);
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  padding:28px 16px;
+  overflow-x:hidden;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+  opacity:.025;mix-blend-mode:overlay;
+}
+
+/* ---------- Desktop showcase ---------- */
+.stage{position:relative;z-index:1;display:flex;align-items:center;gap:64px;max-width:1180px;width:100%}
+.pitch{flex:1;max-width:430px;display:none}
+@media(min-width:1080px){.pitch{display:block}}
+.brandmark{display:flex;align-items:center;gap:12px;margin-bottom:34px}
+.logo-dot{width:44px;height:44px;border-radius:14px;background:linear-gradient(150deg,var(--lime),var(--lime-deep));display:grid;place-items:center;box-shadow:0 8px 30px rgba(201,255,60,.35)}
+.logo-dot svg{width:24px;height:24px}
+.brandmark b{font-family:var(--display);font-weight:600;font-size:24px;letter-spacing:-.02em}
+.pitch h1{font-family:var(--display);font-weight:600;font-size:54px;line-height:.98;letter-spacing:-.03em;margin-bottom:22px}
+.pitch h1 em{font-style:normal;color:var(--lime)}
+.pitch p{color:var(--txt-2);font-size:17px;line-height:1.6;max-width:380px;margin-bottom:30px}
+.pillrow{display:flex;flex-wrap:wrap;gap:10px}
+.pill{font-size:13px;font-weight:500;color:var(--txt);padding:9px 15px;border:1px solid var(--card-bd);border-radius:100px;background:var(--card);display:flex;align-items:center;gap:7px}
+.pill .d{width:6px;height:6px;border-radius:50%;background:var(--lime)}
+.pill:nth-child(2) .d{background:var(--coral)}
+.pill:nth-child(3) .d{background:var(--sky)}
+.pill:nth-child(4) .d{background:var(--violet)}
+.demolinks{display:flex;gap:12px;margin-top:26px}
+.demolinks a{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#0a1400;background:var(--lime);padding:12px 18px;border-radius:14px;text-decoration:none;transition:.15s}
+.demolinks a.alt{background:var(--card);border:1px solid var(--card-bd);color:var(--txt)}
+.demolinks a:active{transform:scale(.97)}
+.demolinks a svg{width:16px;height:16px}
+
+/* ---------- Phone ---------- */
+.phone{
+  position:relative;flex:0 0 auto;width:390px;height:830px;max-height:92vh;
+  background:linear-gradient(170deg,#1b211a,#0a0d09);
+  border-radius:54px;padding:13px;
+  box-shadow:0 50px 120px -30px rgba(0,0,0,.9),0 0 0 1.5px rgba(255,255,255,.05),inset 0 0 0 2px rgba(0,0,0,.6);
+}
+@media(max-width:430px){
+  body{padding:0;display:block}
+  .stage{gap:0}
+  .phone{width:100vw;height:100dvh;max-height:none;border-radius:0;padding:0;box-shadow:none}
+}
+.screen{
+  position:relative;width:100%;height:100%;overflow:hidden;
+  background:var(--bg);border-radius:42px;display:flex;flex-direction:column;
+}
+@media(max-width:430px){.screen{border-radius:0}}
+
+/* status bar */
+.statusbar{display:flex;justify-content:space-between;align-items:center;padding:16px 26px 8px;font-size:14px;font-weight:600;flex:0 0 auto;z-index:5}
+.statusbar .ic{display:flex;gap:6px;align-items:center}
+.statusbar svg{width:17px;height:13px}
+
+/* scroll area */
+.view{flex:1;overflow-y:auto;overflow-x:hidden;padding:6px 20px 120px;scrollbar-width:none}
+.view::-webkit-scrollbar{display:none}
+.page{display:none;animation:fade .45s ease both}
+.page.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* reveal stagger */
+.r{opacity:0;transform:translateY(14px);animation:rise .6s cubic-bezier(.2,.8,.2,1) forwards}
+.page.active .r{animation:rise .6s cubic-bezier(.2,.8,.2,1) forwards}
+@keyframes rise{to{opacity:1;transform:none}}
+.r1{animation-delay:.05s}.r2{animation-delay:.12s}.r3{animation-delay:.19s}.r4{animation-delay:.26s}.r5{animation-delay:.33s}.r6{animation-delay:.4s}.r7{animation-delay:.47s}
+
+/* header */
+.phead{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 4px 18px}
+.phead .hi{font-size:14px;color:var(--txt-2);font-weight:500}
+.phead h2{font-family:var(--display);font-weight:600;font-size:26px;letter-spacing:-.02em;margin-top:3px}
+.ava{width:46px;height:46px;border-radius:16px;background:linear-gradient(140deg,#2a3322,#171c12);border:1px solid var(--card-bd);display:grid;place-items:center;font-family:var(--display);font-weight:600;font-size:17px;color:var(--lime)}
+.flame{display:flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--card-bd);padding:7px 12px;border-radius:100px;font-size:13px;font-weight:600;margin-top:8px}
+.flame svg{width:14px;height:14px}
+
+/* hero ring card */
+.hero{position:relative;background:linear-gradient(165deg,rgba(201,255,60,.07),rgba(255,255,255,.02));border:1px solid var(--card-bd);border-radius:30px;padding:26px 22px;overflow:hidden}
+.hero::after{content:"";position:absolute;width:240px;height:240px;right:-90px;top:-90px;border-radius:50%;background:radial-gradient(circle,rgba(201,255,60,.18),transparent 70%)}
+.ringwrap{display:flex;align-items:center;gap:22px;position:relative}
+.ring{position:relative;width:148px;height:148px;flex:0 0 auto}
+.ring svg{transform:rotate(-90deg)}
+.ring .mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.ring .big{font-family:var(--display);font-weight:600;font-size:38px;line-height:1;letter-spacing:-.02em}
+.ring .lbl{font-size:11px;color:var(--txt-2);text-transform:uppercase;letter-spacing:.12em;margin-top:5px}
+.statlist{flex:1;display:flex;flex-direction:column;gap:14px}
+.statline{display:flex;align-items:center;gap:11px}
+.statline .dot{width:9px;height:9px;border-radius:3px;flex:0 0 auto}
+.statline .t{flex:1}
+.statline .t span{display:block;font-size:12px;color:var(--txt-2)}
+.statline .t b{font-family:var(--display);font-weight:600;font-size:18px;letter-spacing:-.01em}
+
+/* macro bars */
+.macros{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin-top:14px}
+.macro{background:var(--card);border:1px solid var(--hair);border-radius:18px;padding:14px}
+.macro .top{display:flex;justify-content:space-between;font-size:12px;color:var(--txt-2);margin-bottom:9px}
+.macro b{font-family:var(--display);font-weight:600;color:var(--txt)}
+.bar{height:6px;border-radius:100px;background:rgba(255,255,255,.08);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:100px}
+
+/* metric grid */
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-top:14px}
+.mcard{background:var(--card);border:1px solid var(--hair);border-radius:22px;padding:17px 18px;position:relative;overflow:hidden}
+.mcard .ico{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;margin-bottom:14px}
+.mcard .ico svg{width:18px;height:18px}
+.mcard .v{font-family:var(--display);font-weight:600;font-size:25px;letter-spacing:-.02em}
+.mcard .v small{font-size:13px;color:var(--txt-2);font-weight:500;font-family:var(--body)}
+.mcard .k{font-size:12.5px;color:var(--txt-2);margin-top:2px}
+.mcard .trend{position:absolute;top:16px;right:16px;font-size:11px;font-weight:600;padding:3px 8px;border-radius:100px}
+.up{color:var(--lime);background:rgba(201,255,60,.12)}
+.down{color:var(--coral);background:rgba(255,122,83,.12)}
+
+.section-h{display:flex;justify-content:space-between;align-items:center;margin:26px 4px 13px}
+.section-h h3{font-family:var(--display);font-weight:600;font-size:19px;letter-spacing:-.01em}
+.section-h a{font-size:13px;color:var(--lime);font-weight:600}
+
+/* AI insight */
+.insight{display:flex;gap:13px;background:linear-gradient(120deg,rgba(183,155,255,.1),rgba(255,255,255,.02));border:1px solid rgba(183,155,255,.2);border-radius:22px;padding:16px}
+.insight .orb{width:38px;height:38px;border-radius:13px;flex:0 0 auto;background:linear-gradient(140deg,var(--violet),#7c5cff);display:grid;place-items:center}
+.insight .orb svg{width:20px;height:20px}
+.insight p{font-size:13.5px;line-height:1.5;color:var(--txt)}
+.insight p b{color:var(--violet)}
+.insight .tag{font-size:11px;color:var(--txt-2);margin-top:6px;display:block}
+
+/* water */
+.water{display:flex;align-items:center;gap:14px;background:linear-gradient(120deg,rgba(91,209,255,.08),rgba(255,255,255,.02));border:1px solid rgba(91,209,255,.18);border-radius:22px;padding:16px 18px;margin-top:13px}
+.glasses{display:flex;gap:6px;flex:1}
+.gl{flex:1;height:34px;border-radius:8px 8px 11px 11px;border:1.5px solid rgba(91,209,255,.4)}
+.gl.f{background:linear-gradient(180deg,rgba(91,209,255,.25),var(--sky));border-color:var(--sky)}
+.water .lab{font-size:12px;color:var(--txt-2)}
+.water .lab b{display:block;font-family:var(--display);font-weight:600;font-size:18px;color:var(--txt)}
+.addw{width:40px;height:40px;border-radius:13px;background:var(--sky);color:#062430;border:none;font-size:24px;font-weight:600;flex:0 0 auto}
+
+/* journal */
+.meal{background:var(--card);border:1px solid var(--hair);border-radius:24px;padding:18px;margin-bottom:13px}
+.meal .mh{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.meal .mh .lft{display:flex;align-items:center;gap:11px}
+.meal .mh .em{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:19px}
+.meal .mh b{font-family:var(--display);font-weight:600;font-size:16px}
+.meal .mh span{display:block;font-size:12px;color:var(--txt-2);margin-top:1px}
+.meal .kc{font-family:var(--display);font-weight:600;font-size:15px}
+.fitem{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid var(--hair);font-size:14px}
+.fitem .nm{color:var(--txt)}
+.fitem .nm small{display:block;color:var(--txt-3);font-size:11.5px}
+.fitem .c{color:var(--txt-2);font-size:13px}
+.addmeal{width:100%;margin-top:4px;display:flex;align-items:center;justify-content:center;gap:8px;padding:13px;border:1.5px dashed var(--card-bd);border-radius:16px;color:var(--txt-2);background:none;font-family:var(--body);font-weight:600;font-size:14px}
+
+/* scan */
+.cam{position:relative;height:380px;border-radius:30px;overflow:hidden;background:
+  radial-gradient(circle at 50% 40%,#22301c,#0a0e08);border:1px solid var(--card-bd);display:grid;place-items:center;margin-top:8px}
+.cam .plate{width:170px;height:170px;border-radius:50%;background:
+  radial-gradient(circle at 40% 35%,#3a4a2b,#1a2113);box-shadow:inset 0 8px 30px rgba(0,0,0,.5);position:relative;display:grid;place-items:center;font-size:60px}
+.frame{position:absolute;width:230px;height:230px;border-radius:20px}
+.frame span{position:absolute;width:34px;height:34px;border:3px solid var(--lime)}
+.frame span:nth-child(1){top:0;left:0;border-right:0;border-bottom:0;border-radius:14px 0 0 0}
+.frame span:nth-child(2){top:0;right:0;border-left:0;border-bottom:0;border-radius:0 14px 0 0}
+.frame span:nth-child(3){bottom:0;left:0;border-right:0;border-top:0;border-radius:0 0 0 14px}
+.frame span:nth-child(4){bottom:0;right:0;border-left:0;border-top:0;border-radius:0 0 14px 0}
+.scanline{position:absolute;left:8%;right:8%;height:2px;background:linear-gradient(90deg,transparent,var(--lime),transparent);top:20%;animation:scan 2.4s ease-in-out infinite;box-shadow:0 0 18px var(--lime)}
+@keyframes scan{0%,100%{top:18%}50%{top:80%}}
+.detected{position:absolute;bottom:14px;left:14px;background:rgba(7,10,8,.82);backdrop-filter:blur(8px);border:1px solid var(--card-bd);border-radius:14px;padding:9px 13px;font-size:12px;display:flex;align-items:center;gap:8px}
+.detected .pp{width:7px;height:7px;border-radius:50%;background:var(--lime);box-shadow:0 0 8px var(--lime)}
+.detected b{font-family:var(--display);font-weight:600}
+.scancard{background:var(--card);border:1px solid var(--card-bd);border-radius:24px;padding:18px;margin-top:14px}
+.scancard .ttl{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.scancard .ttl b{font-family:var(--display);font-weight:600;font-size:17px}
+.conf{font-size:11px;font-weight:600;color:var(--lime);background:rgba(201,255,60,.12);padding:4px 9px;border-radius:100px}
+.nrow{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:15px}
+.ncell{background:var(--surface);border:1px solid var(--hair);border-radius:14px;padding:11px 8px;text-align:center}
+.ncell b{display:block;font-family:var(--display);font-weight:600;font-size:18px}
+.ncell span{font-size:10.5px;color:var(--txt-2);text-transform:uppercase;letter-spacing:.06em}
+.scanbtns{display:flex;gap:10px}
+.btn{flex:1;border:none;border-radius:15px;padding:14px;font-family:var(--body);font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center;gap:7px}
+.btn.prim{background:var(--lime);color:#0a1400}
+.btn.ghost{background:var(--card);border:1px solid var(--card-bd);color:var(--txt)}
+.scanmodes{display:flex;gap:9px;margin-top:14px}
+.smode{flex:1;background:var(--card);border:1px solid var(--hair);border-radius:16px;padding:13px 10px;text-align:center}
+.smode.on{border-color:var(--lime);background:rgba(201,255,60,.07)}
+.smode svg{width:20px;height:20px;margin-bottom:6px}
+.smode span{display:block;font-size:11.5px;font-weight:600;color:var(--txt-2)}
+.smode.on span{color:var(--lime)}
+
+/* coach chat */
+.chat{display:flex;flex-direction:column;gap:13px;padding-top:6px}
+.bub{max-width:82%;padding:13px 16px;border-radius:20px;font-size:14px;line-height:1.5}
+.bub.ai{align-self:flex-start;background:var(--card);border:1px solid var(--card-bd);border-bottom-left-radius:7px}
+.bub.me{align-self:flex-end;background:var(--lime);color:#0a1400;border-bottom-right-radius:7px;font-weight:500}
+.bub.ai b{color:var(--lime)}
+.coachhead{display:flex;align-items:center;gap:12px;padding:8px 4px 12px}
+.coachhead .orb{width:46px;height:46px;border-radius:16px;background:linear-gradient(140deg,var(--violet),#7c5cff);display:grid;place-items:center}
+.coachhead .orb svg{width:24px;height:24px}
+.coachhead b{font-family:var(--display);font-weight:600;font-size:18px}
+.coachhead .on{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--txt-2)}
+.coachhead .on i{width:7px;height:7px;border-radius:50%;background:var(--lime);box-shadow:0 0 8px var(--lime)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.chip{font-size:12.5px;font-weight:500;color:var(--txt);padding:9px 13px;border:1px solid var(--card-bd);border-radius:100px;background:var(--card)}
+.composer{display:flex;gap:9px;align-items:center;margin-top:16px;background:var(--card);border:1px solid var(--card-bd);border-radius:100px;padding:6px 6px 6px 18px}
+.composer input{flex:1;background:none;border:none;color:var(--txt);font-family:var(--body);font-size:14px;outline:none}
+.composer input::placeholder{color:var(--txt-3)}
+.composer .snd{width:40px;height:40px;border-radius:50%;background:var(--lime);border:none;display:grid;place-items:center;flex:0 0 auto}
+.composer .snd svg{width:18px;height:18px}
+
+/* meals IA */
+.recipe{background:var(--card);border:1px solid var(--hair);border-radius:24px;overflow:hidden;margin-bottom:14px}
+.recipe .img{height:130px;position:relative;display:grid;place-items:center;font-size:54px}
+.recipe .img .fav{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:50%;background:rgba(7,10,8,.6);backdrop-filter:blur(6px);display:grid;place-items:center;border:1px solid var(--card-bd)}
+.recipe .img .fav svg{width:16px;height:16px}
+.recipe .img .badge{position:absolute;top:12px;left:12px;font-size:11px;font-weight:600;background:rgba(7,10,8,.7);backdrop-filter:blur(6px);padding:5px 11px;border-radius:100px;border:1px solid var(--card-bd);display:flex;align-items:center;gap:5px}
+.recipe .body{padding:16px}
+.recipe .body h4{font-family:var(--display);font-weight:600;font-size:17px;margin-bottom:5px}
+.recipe .body .meta{display:flex;gap:14px;font-size:12px;color:var(--txt-2);margin-bottom:13px}
+.recipe .body .meta span{display:flex;align-items:center;gap:5px}
+.recipe .body .meta svg{width:13px;height:13px}
+.minimacros{display:flex;gap:7px;margin-bottom:14px}
+.mm{flex:1;text-align:center;background:var(--surface);border-radius:11px;padding:8px 4px}
+.mm b{display:block;font-family:var(--display);font-weight:600;font-size:14px}
+.mm span{font-size:10px;color:var(--txt-2);text-transform:uppercase}
+.recipe .acts{display:flex;gap:9px}
+.recipe .acts button{flex:1;border:none;border-radius:13px;padding:12px;font-family:var(--body);font-weight:600;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px}
+.recipe .acts .add{background:var(--lime);color:#0a1400}
+.recipe .acts .cart{background:var(--card);border:1px solid var(--card-bd);color:var(--txt);flex:0 0 auto;width:46px}
+.mealtabs{display:flex;gap:8px;margin:4px 0 16px;overflow-x:auto;scrollbar-width:none}
+.mealtabs::-webkit-scrollbar{display:none}
+.mtab{flex:0 0 auto;font-size:13px;font-weight:600;padding:9px 16px;border-radius:100px;border:1px solid var(--hair);background:var(--card);color:var(--txt-2)}
+.mtab.on{background:var(--lime);color:#0a1400;border-color:var(--lime)}
+
+/* exercises */
+.workout{background:var(--card);border:1px solid var(--hair);border-radius:24px;padding:17px;margin-bottom:13px;display:flex;gap:15px;align-items:center}
+.workout .ph{width:64px;height:64px;border-radius:18px;display:grid;place-items:center;font-size:30px;flex:0 0 auto}
+.workout .info{flex:1}
+.workout .info b{font-family:var(--display);font-weight:600;font-size:16px;display:block;margin-bottom:5px}
+.workout .info .row{display:flex;gap:13px;font-size:12px;color:var(--txt-2)}
+.workout .info .row span{display:flex;align-items:center;gap:4px}
+.workout .info .row svg{width:13px;height:13px}
+.diff{font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:100px;margin-top:8px;display:inline-block}
+.d1{color:var(--lime);background:rgba(201,255,60,.12)}
+.d2{color:var(--amber);background:rgba(255,194,75,.12)}
+.d3{color:var(--coral);background:rgba(255,122,83,.12)}
+.workout .play{width:46px;height:46px;border-radius:50%;background:var(--lime);border:none;display:grid;place-items:center;flex:0 0 auto}
+.workout .play svg{width:18px;height:18px}
+.budget{background:linear-gradient(120deg,rgba(201,255,60,.1),rgba(255,255,255,.02));border:1px solid rgba(201,255,60,.22);border-radius:22px;padding:18px;margin-bottom:6px}
+.budget .l{font-size:13px;color:var(--txt-2);margin-bottom:8px}
+.budget .calc{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:600;font-size:15px;flex-wrap:wrap}
+.budget .calc .op{color:var(--txt-3)}
+.budget .calc .res{color:var(--lime);font-size:22px}
+
+/* stats */
+.kpibig{background:linear-gradient(165deg,rgba(255,122,83,.08),rgba(255,255,255,.02));border:1px solid var(--card-bd);border-radius:26px;padding:22px}
+.kpibig .l{font-size:13px;color:var(--txt-2)}
+.kpibig .v{font-family:var(--display);font-weight:600;font-size:42px;letter-spacing:-.02em;margin:6px 0;display:flex;align-items:baseline;gap:8px}
+.kpibig .v small{font-size:15px;color:var(--coral);font-weight:600;font-family:var(--body)}
+.chartwrap{margin-top:18px;height:120px;position:relative}
+.weekbars{display:grid;grid-template-columns:repeat(7,1fr);gap:9px;margin-top:16px;align-items:end;height:120px}
+.wb{display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end}
+.wb .col{width:100%;border-radius:8px 8px 4px 4px;background:linear-gradient(180deg,var(--lime),var(--lime-deep));min-height:8px}
+.wb.miss .col{background:rgba(255,255,255,.1)}
+.wb .dl{font-size:11px;color:var(--txt-3);font-weight:600}
+.kgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+
+/* badges */
+.badgewrap{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-top:6px}
+.bdg{aspect-ratio:1;border-radius:20px;background:var(--card);border:1px solid var(--hair);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;font-size:26px}
+.bdg.lock{opacity:.32;font-size:20px}
+.bdg span{font-size:10px;color:var(--txt-2);font-weight:600}
+
+/* profile */
+.profhero{display:flex;flex-direction:column;align-items:center;text-align:center;padding:14px 0 6px}
+.profhero .av{width:84px;height:84px;border-radius:28px;background:linear-gradient(140deg,#2a3322,#171c12);border:1px solid var(--card-bd);display:grid;place-items:center;font-family:var(--display);font-weight:600;font-size:30px;color:var(--lime);margin-bottom:14px}
+.profhero h2{font-family:var(--display);font-weight:600;font-size:23px}
+.profhero .sub{font-size:13px;color:var(--txt-2);margin-top:3px}
+.prem{display:flex;align-items:center;gap:13px;background:linear-gradient(120deg,rgba(255,194,75,.12),rgba(255,122,83,.06));border:1px solid rgba(255,194,75,.28);border-radius:22px;padding:17px;margin:20px 0}
+.prem .ico{width:42px;height:42px;border-radius:14px;background:linear-gradient(140deg,var(--amber),var(--coral));display:grid;place-items:center;flex:0 0 auto}
+.prem .ico svg{width:22px;height:22px}
+.prem b{font-family:var(--display);font-weight:600;font-size:16px;display:block}
+.prem span{font-size:12.5px;color:var(--txt-2)}
+.prem .go{margin-left:auto;background:var(--amber);color:#3a2600;border:none;border-radius:100px;padding:9px 16px;font-family:var(--body);font-weight:700;font-size:13px}
+.plist{background:var(--card);border:1px solid var(--hair);border-radius:22px;overflow:hidden}
+.prow{display:flex;align-items:center;gap:14px;padding:15px 17px;border-bottom:1px solid var(--hair);font-size:14.5px;font-weight:500}
+.prow:last-child{border-bottom:none}
+.prow .pic{width:34px;height:34px;border-radius:11px;background:var(--surface-2);display:grid;place-items:center;flex:0 0 auto}
+.prow .pic svg{width:17px;height:17px;color:var(--txt-2)}
+.prow .ch{margin-left:auto;color:var(--txt-3)}
+.prow .val{margin-left:auto;color:var(--txt-2);font-size:13px}
+.sync{display:flex;gap:10px;margin-top:14px}
+.synccard{flex:1;background:var(--card);border:1px solid var(--hair);border-radius:18px;padding:14px;text-align:center}
+.synccard svg{width:24px;height:24px;margin-bottom:8px}
+.synccard b{display:block;font-size:13px;font-weight:600}
+.synccard span{font-size:11px;color:var(--lime);display:flex;align-items:center;justify-content:center;gap:4px;margin-top:3px}
+
+/* ---------- bottom nav ---------- */
+.tabbar{
+  position:absolute;left:0;right:0;bottom:0;z-index:30;
+  padding:10px 14px calc(14px + env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,rgba(7,10,8,0),rgba(7,10,8,.92) 32%);
+}
+.tabinner{display:flex;align-items:center;justify-content:space-between;background:rgba(18,23,15,.85);backdrop-filter:blur(18px);border:1px solid var(--card-bd);border-radius:26px;padding:8px 9px;position:relative}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 0;color:var(--txt-3);background:none;border:none;font-family:var(--body);font-size:9.5px;font-weight:600;letter-spacing:.01em;transition:color .25s;position:relative;z-index:2}
+.tab svg{width:21px;height:21px;transition:transform .3s}
+.tab.on{color:var(--lime)}
+.tab.on svg{transform:translateY(-1px)}
+.tab.scan{flex:0 0 auto;width:56px}
+.tab.scan .fab{width:54px;height:54px;border-radius:18px;background:linear-gradient(150deg,var(--lime),var(--lime-deep));display:grid;place-items:center;box-shadow:0 10px 26px rgba(201,255,60,.4);margin-top:-22px;margin-bottom:2px}
+.tab.scan .fab svg{width:26px;height:26px;color:#0a1400}
+.tab.scan{color:var(--txt-3)}
+.tab.scan.on{color:var(--lime)}
+
+.hint{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:50;font-size:12px;color:var(--txt-3);background:rgba(18,23,15,.8);border:1px solid var(--card-bd);padding:8px 16px;border-radius:100px;backdrop-filter:blur(8px)}
+@media(max-width:1080px){.hint{display:none}}
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <aside class="pitch">
+    <div class="brandmark">
+      <span class="logo-dot"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#0a1400" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <b>BODYUP</b>
+    </div>
+    <h1>Ton coach santé <em>IA</em>, dans une seule main.</h1>
+    <p>Nutrition, activité, hydratation et accompagnement personnalisé. Enregistre un repas en moins de 3 gestes — l'IA fait le reste.</p>
+    <div class="pillrow">
+      <span class="pill"><span class="d"></span>Scan photo IA</span>
+      <span class="pill"><span class="d"></span>Coach 24/7</span>
+      <span class="pill"><span class="d"></span>Apple Health · Google Fit</span>
+      <span class="pill"><span class="d"></span>Repas générés par IA</span>
+    </div>
+    <div class="demolinks">
+      <a href="onboarding.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg> Revoir l'onboarding</a>
+      <a href="tablet.html" class="alt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8"/></svg> Version tablette</a>
+    </div>
+  </aside>
+
+  <div class="phone">
+    <div class="screen">
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="ic">
+          <svg viewBox="0 0 18 13" fill="currentColor"><rect x="0" y="8" width="3" height="5" rx="1"/><rect x="5" y="5" width="3" height="8" rx="1"/><rect x="10" y="2" width="3" height="11" rx="1"/><rect x="15" y="0" width="3" height="13" rx="1" opacity=".4"/></svg>
+          <svg viewBox="0 0 20 13" fill="currentColor"><path d="M10 2.5c2.4 0 4.6.9 6.3 2.4l1.4-1.6C15.6 1.5 12.9.5 10 .5S4.4 1.5 2.3 3.3l1.4 1.6C5.4 3.4 7.6 2.5 10 2.5z"/><path d="M10 6c1.3 0 2.5.5 3.4 1.3l1.4-1.5C13.5 4.6 11.8 4 10 4s-3.5.6-4.8 1.8l1.4 1.5C7.5 6.5 8.7 6 10 6z"/><circle cx="10" cy="10.5" r="1.8"/></svg>
+          <svg viewBox="0 0 26 13" fill="none"><rect x="1" y="1" width="21" height="11" rx="3" stroke="currentColor" opacity=".5"/><rect x="3" y="3" width="16" height="7" rx="1.5" fill="currentColor"/><rect x="23.5" y="4.5" width="1.8" height="4" rx="1" fill="currentColor" opacity=".5"/></svg>
+        </span>
+      </div>
+
+      <div class="view" id="view">
+
+        <!-- ============ ACCUEIL ============ -->
+        <section class="page active" data-page="home">
+          <div class="phead r r1">
+            <div>
+              <div class="hi">Lundi 29 juin · Bonjour</div>
+              <h2>Sébastien</h2>
+              <span class="flame"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2c1 3.5-1.5 4.5-1.5 7A3.5 3.5 0 0014 11c0-2 2-2.5 2-4 2 2 3 4.5 3 7a7 7 0 11-14 0c0-4 3.5-6 4-9 1.5 1 2.5 2.5 3 5z" fill="var(--coral)"/></svg> 14 jours de suite</span>
+            </div>
+            <div class="ava">SA</div>
+          </div>
+
+          <!-- ring hero -->
+          <div class="hero r r2">
+            <div class="ringwrap">
+              <div class="ring">
+                <svg width="148" height="148" viewBox="0 0 148 148">
+                  <circle cx="74" cy="74" r="62" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="13"/>
+                  <circle id="calRing" cx="74" cy="74" r="62" fill="none" stroke="var(--lime)" stroke-width="13" stroke-linecap="round" stroke-dasharray="389.6" stroke-dashoffset="389.6"/>
+                </svg>
+                <div class="mid">
+                  <span class="big" id="calBig">0</span>
+                  <span class="lbl">kcal restantes</span>
+                </div>
+              </div>
+              <div class="statlist">
+                <div class="statline"><span class="dot" style="background:var(--lime)"></span><div class="t"><span>Objectif</span><b>2 000</b></div></div>
+                <div class="statline"><span class="dot" style="background:var(--coral)"></span><div class="t"><span>Consommé</span><b>1 700</b></div></div>
+                <div class="statline"><span class="dot" style="background:var(--sky)"></span><div class="t"><span>Brûlé</span><b>+300</b></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- macros -->
+          <div class="macros r r3">
+            <div class="macro">
+              <div class="top"><span>Protéines</span><span><b>98</b>/120g</span></div>
+              <div class="bar"><i style="width:82%;background:var(--lime)"></i></div>
+            </div>
+            <div class="macro">
+              <div class="top"><span>Glucides</span><span><b>160</b>/220g</span></div>
+              <div class="bar"><i style="width:73%;background:var(--amber)"></i></div>
+            </div>
+            <div class="macro">
+              <div class="top"><span>Lipides</span><span><b>52</b>/65g</span></div>
+              <div class="bar"><i style="width:80%;background:var(--coral)"></i></div>
+            </div>
+          </div>
+
+          <!-- metric grid -->
+          <div class="mgrid r r4">
+            <div class="mcard">
+              <span class="trend up">↑ 12%</span>
+              <div class="ico" style="background:rgba(91,209,255,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--sky)" stroke-width="2" stroke-linecap="round"><path d="M19 5L5 19M9 5l-4 4M19 11l-4 4"/></svg></div>
+              <div class="v">8 240<small> pas</small></div>
+              <div class="k">Objectif 10 000</div>
+            </div>
+            <div class="mcard">
+              <span class="trend down">−0.4 kg</span>
+              <div class="ico" style="background:rgba(201,255,60,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M21 7v5h-5"/></svg></div>
+              <div class="v">78.6<small> kg</small></div>
+              <div class="k">Cible 74 kg</div>
+            </div>
+            <div class="mcard">
+              <div class="ico" style="background:rgba(255,122,83,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--coral)" stroke-width="2" stroke-linecap="round"><path d="M12 2c1 3.5-1.5 4.5-1.5 7A3.5 3.5 0 0014 11c0-2 2-2.5 2-4 2 2 3 4.5 3 7a7 7 0 11-14 0c0-4 3.5-6 4-9 1.5 1 2.5 2.5 3 5z"/></svg></div>
+              <div class="v">300<small> kcal</small></div>
+              <div class="k">Brûlées aujourd'hui</div>
+            </div>
+            <div class="mcard">
+              <div class="ico" style="background:rgba(183,155,255,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--violet)" stroke-width="2" stroke-linecap="round"><path d="M12 21a9 9 0 100-18 9 9 0 000 18z"/><path d="M12 7v5l3 2"/></svg></div>
+              <div class="v">87<small>/100</small></div>
+              <div class="k">Score santé</div>
+            </div>
+          </div>
+
+          <!-- water -->
+          <div class="water r r5">
+            <div class="lab"><b>1.4 L</b>/ 2.2 L</div>
+            <div class="glasses">
+              <div class="gl f"></div><div class="gl f"></div><div class="gl f"></div><div class="gl f"></div><div class="gl"></div><div class="gl"></div>
+            </div>
+            <button class="addw">+</button>
+          </div>
+
+          <div class="section-h r r6"><h3>Analyse IA</h3><a>Tout voir</a></div>
+          <div class="insight r r6">
+            <div class="orb"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg></div>
+            <div>
+              <p>Tu manques de <b>protéines depuis 4 jours</b>. Un dîner riche en protéines ce soir t'aiderait à atteindre ton objectif musculaire.</p>
+              <span class="tag">Détecté par l'analyse des habitudes</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ JOURNAL ============ -->
+        <section class="page" data-page="journal">
+          <div class="phead r r1">
+            <div><div class="hi">Aujourd'hui</div><h2>Journal</h2></div>
+            <div class="ava" style="font-size:13px;line-height:1.1;text-align:center">1700<br><span style="font-size:9px;color:var(--txt-2)">kcal</span></div>
+          </div>
+
+          <div class="meal r r2">
+            <div class="mh">
+              <div class="lft"><div class="em" style="background:rgba(255,194,75,.13)">🍳</div><div><b>Petit-déjeuner</b><span>520 kcal · 3 aliments</span></div></div>
+              <div class="kc" style="color:var(--amber)">520</div>
+            </div>
+            <div class="fitem"><div class="nm">Flocons d'avoine<small>80 g</small></div><div class="c">304 kcal</div></div>
+            <div class="fitem"><div class="nm">Banane<small>1 moyenne</small></div><div class="c">105 kcal</div></div>
+            <div class="fitem"><div class="nm">Yaourt grec<small>150 g</small></div><div class="c">111 kcal</div></div>
+          </div>
+
+          <div class="meal r r3">
+            <div class="mh">
+              <div class="lft"><div class="em" style="background:rgba(201,255,60,.13)">🥗</div><div><b>Déjeuner</b><span>680 kcal · 2 aliments</span></div></div>
+              <div class="kc" style="color:var(--lime)">680</div>
+            </div>
+            <div class="fitem"><div class="nm">Poulet grillé + riz<small>320 g</small></div><div class="c">520 kcal</div></div>
+            <div class="fitem"><div class="nm">Salade verte vinaigrette<small>1 bol</small></div><div class="c">160 kcal</div></div>
+          </div>
+
+          <div class="meal r r4">
+            <div class="mh">
+              <div class="lft"><div class="em" style="background:rgba(255,122,83,.13)">🍎</div><div><b>Collation</b><span>500 kcal · 2 aliments</span></div></div>
+              <div class="kc" style="color:var(--coral)">500</div>
+            </div>
+            <div class="fitem"><div class="nm">Amandes<small>30 g</small></div><div class="c">174 kcal</div></div>
+            <div class="fitem"><div class="nm">Barre protéinée<small>1 barre</small></div><div class="c">326 kcal</div></div>
+          </div>
+
+          <div class="meal r r5" style="border-style:dashed;opacity:.7">
+            <div class="mh">
+              <div class="lft"><div class="em" style="background:rgba(183,155,255,.13)">🌙</div><div><b>Dîner</b><span>Non enregistré</span></div></div>
+              <div class="kc" style="color:var(--txt-3)">—</div>
+            </div>
+            <button class="addmeal r6"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Ajouter un repas</button>
+          </div>
+        </section>
+
+        <!-- ============ SCAN IA ============ -->
+        <section class="page" data-page="scan">
+          <div class="phead r r1"><div><div class="hi">Reconnaissance instantanée</div><h2>Scan IA</h2></div></div>
+
+          <div class="scanmodes r r2">
+            <div class="smode on"><svg viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2" stroke-linecap="round"><path d="M3 9a2 2 0 012-2h1l1.5-2h9L19 7h1a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3.5"/></svg><span>Photo</span></div>
+            <div class="smode"><svg viewBox="0 0 24 24" fill="none" stroke="var(--txt-2)" stroke-width="2" stroke-linecap="round"><path d="M4 7v10M8 7v10M12 7v10M16 7v10M20 7v10"/></svg><span>Code-barres</span></div>
+            <div class="smode"><svg viewBox="0 0 24 24" fill="none" stroke="var(--txt-2)" stroke-width="2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg><span>Vocal</span></div>
+          </div>
+
+          <div class="cam r r3">
+            <div class="frame"><span></span><span></span><span></span><span></span>
+              <div class="plate">🍝</div>
+            </div>
+            <div class="scanline"></div>
+            <div class="detected"><span class="pp"></span><b>Pâtes bolognaise</b> détecté</div>
+          </div>
+
+          <div class="scancard r r4">
+            <div class="ttl"><b>Pâtes bolognaise</b><span class="conf">97% sûr</span></div>
+            <div class="nrow">
+              <div class="ncell"><b>620</b><span>kcal</span></div>
+              <div class="ncell"><b>28g</b><span>prot</span></div>
+              <div class="ncell"><b>74g</b><span>gluc</span></div>
+              <div class="ncell"><b>22g</b><span>lip</span></div>
+            </div>
+            <div class="scanbtns">
+              <button class="btn ghost"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 109-9M3 12l3-3M3 12l3 3"/></svg>Reprendre</button>
+              <button class="btn prim"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg>Valider</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ EXERCICES ============ -->
+        <section class="page" data-page="exo">
+          <div class="phead r r1"><div><div class="hi">À la maison · Sans matériel</div><h2>Exercices</h2></div></div>
+
+          <div class="budget r r2">
+            <div class="l">Budget calorique en direct</div>
+            <div class="calc">
+              <span>2000</span><span class="op">−</span><span>1700</span><span class="op">+</span><span style="color:var(--lime)">300</span><span class="op">=</span><span class="res">600 kcal</span>
+            </div>
+          </div>
+
+          <div class="section-h r r3" style="margin-top:18px"><h3>Séances rapides</h3><a>Filtrer</a></div>
+
+          <div class="workout r r3">
+            <div class="ph" style="background:rgba(255,122,83,.12)">🔥</div>
+            <div class="info">
+              <b>HIIT débutant</b>
+              <div class="row"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>15 min</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2c1 3.5-1.5 4.5-1.5 7A3.5 3.5 0 0014 11c0-2 2-2.5 2-4 2 2 3 4.5 3 7a7 7 0 11-14 0c0-4 3.5-6 4-9z"/></svg>300 kcal</span></div>
+              <span class="diff d3">Intense</span>
+            </div>
+            <button class="play"><svg viewBox="0 0 24 24" fill="#0a1400"><path d="M8 5v14l11-7z"/></svg></button>
+          </div>
+
+          <div class="workout r r4">
+            <div class="ph" style="background:rgba(201,255,60,.12)">🧘</div>
+            <div class="info">
+              <b>Yoga matinal</b>
+              <div class="row"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>20 min</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2c1 3.5-1.5 4.5-1.5 7A3.5 3.5 0 0014 11c0-2 2-2.5 2-4 2 2 3 4.5 3 7a7 7 0 11-14 0c0-4 3.5-6 4-9z"/></svg>90 kcal</span></div>
+              <span class="diff d1">Doux</span>
+            </div>
+            <button class="play"><svg viewBox="0 0 24 24" fill="#0a1400"><path d="M8 5v14l11-7z"/></svg></button>
+          </div>
+
+          <div class="workout r r5">
+            <div class="ph" style="background:rgba(255,194,75,.12)">💪</div>
+            <div class="info">
+              <b>Renfo · squats & gainage</b>
+              <div class="row"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>12 min</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2c1 3.5-1.5 4.5-1.5 7A3.5 3.5 0 0014 11c0-2 2-2.5 2-4 2 2 3 4.5 3 7a7 7 0 11-14 0c0-4 3.5-6 4-9z"/></svg>140 kcal</span></div>
+              <span class="diff d2">Modéré</span>
+            </div>
+            <button class="play"><svg viewBox="0 0 24 24" fill="#0a1400"><path d="M8 5v14l11-7z"/></svg></button>
+          </div>
+        </section>
+
+        <!-- ============ REPAS IA ============ -->
+        <section class="page" data-page="repas">
+          <div class="phead r r1"><div><div class="hi">Adapté à tes 600 kcal restantes</div><h2>Repas IA</h2></div></div>
+
+          <div class="mealtabs r r2">
+            <div class="mtab on">Dîner</div>
+            <div class="mtab">Petit-déj</div>
+            <div class="mtab">Déjeuner</div>
+            <div class="mtab">Collation</div>
+          </div>
+
+          <div class="recipe r r3">
+            <div class="img" style="background:linear-gradient(140deg,rgba(201,255,60,.18),rgba(91,209,255,.1))">🐟
+              <span class="badge"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="3"><path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/></svg>Suggestion IA</span>
+              <span class="fav"><svg viewBox="0 0 24 24" fill="none" stroke="var(--txt-2)" stroke-width="2"><path d="M12 21s-7-4.5-9.5-9C1 8.5 3 5 6.5 5 9 5 12 8 12 8s3-3 5.5-3C21 5 23 8.5 21.5 12 19 16.5 12 21 12 21z"/></svg></span>
+            </div>
+            <div class="body">
+              <h4>Saumon rôti & légumes verts</h4>
+              <div class="meta">
+                <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>25 min</span>
+                <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2c1 3.5-1.5 4.5-1.5 7A3.5 3.5 0 0014 11c0-2 2-2.5 2-4 2 2 3 4.5 3 7a7 7 0 11-14 0c0-4 3.5-6 4-9z"/></svg>540 kcal</span>
+                <span>Sans gluten</span>
+              </div>
+              <div class="minimacros">
+                <div class="mm"><b>42g</b><span>Prot</span></div>
+                <div class="mm"><b>18g</b><span>Gluc</span></div>
+                <div class="mm"><b>28g</b><span>Lip</span></div>
+              </div>
+              <div class="acts">
+                <button class="add"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Au journal</button>
+                <button class="cart"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 4h2l2 12h11l2-8H6"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg></button>
+              </div>
+            </div>
+          </div>
+
+          <div class="recipe r r4">
+            <div class="img" style="background:linear-gradient(140deg,rgba(255,194,75,.18),rgba(255,122,83,.1))">🥙
+              <span class="badge"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="3"><path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/></svg>Suggestion IA</span>
+              <span class="fav"><svg viewBox="0 0 24 24" fill="var(--coral)" stroke="var(--coral)" stroke-width="2"><path d="M12 21s-7-4.5-9.5-9C1 8.5 3 5 6.5 5 9 5 12 8 12 8s3-3 5.5-3C21 5 23 8.5 21.5 12 19 16.5 12 21 12 21z"/></svg></span>
+            </div>
+            <div class="body">
+              <h4>Wrap poulet & avocat</h4>
+              <div class="meta">
+                <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>15 min</span>
+                <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2c1 3.5-1.5 4.5-1.5 7A3.5 3.5 0 0014 11c0-2 2-2.5 2-4 2 2 3 4.5 3 7a7 7 0 11-14 0c0-4 3.5-6 4-9z"/></svg>480 kcal</span>
+                <span>Riche en protéines</span>
+              </div>
+              <div class="minimacros">
+                <div class="mm"><b>38g</b><span>Prot</span></div>
+                <div class="mm"><b>32g</b><span>Gluc</span></div>
+                <div class="mm"><b>21g</b><span>Lip</span></div>
+              </div>
+              <div class="acts">
+                <button class="add"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Au journal</button>
+                <button class="cart"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 4h2l2 12h11l2-8H6"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============ COACH IA ============ -->
+        <section class="page" data-page="coach">
+          <div class="coachhead r r1">
+            <div class="orb"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5z"/></svg></div>
+            <div><b>Coach BODYUP</b><span class="on"><i></i>En ligne · 24h/24</span></div>
+          </div>
+
+          <div class="chat">
+            <div class="bub ai r r2">Salut Sébastien 👋 Tu as <b>600 kcal disponibles</b> ce soir grâce à ton HIIT. Comment puis-je t'aider ?</div>
+            <div class="bub me r r3">Pourquoi suis-je fatigué en ce moment ?</div>
+            <div class="bub ai r r4">Plusieurs pistes d'après tes données : ton sommeil est à <b>6h12 en moyenne</b> cette semaine, sous ton besoin. Tu es aussi en léger déficit de protéines depuis 4 jours, ce qui peut jouer sur la récupération.<br><br>Je te suggère un dîner protéiné et de viser 7h30 de sommeil. <b>Ceci ne remplace pas un avis médical</b> — si la fatigue persiste, consulte un professionnel.</div>
+            <div class="chips r r5">
+              <span class="chip">Comment manger plus de protéines ?</span>
+              <span class="chip">Combien d'eau boire ?</span>
+              <span class="chip">Quel exercice aujourd'hui ?</span>
+            </div>
+          </div>
+
+          <div class="composer r r6">
+            <input placeholder="Pose ta question au coach…" />
+            <button class="snd"><svg viewBox="0 0 24 24" fill="none" stroke="#0a1400" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></button>
+          </div>
+        </section>
+
+        <!-- ============ STATS ============ -->
+        <section class="page" data-page="stats">
+          <div class="phead r r1"><div><div class="hi">7 derniers jours</div><h2>Statistiques</h2></div></div>
+
+          <div class="kpibig r r2">
+            <div class="l">Poids perdu depuis le début</div>
+            <div class="v">−3.4 <small>kg en 6 sem.</small></div>
+            <div class="weekbars">
+              <div class="wb"><div class="col" style="height:55%"></div><div class="dl">L</div></div>
+              <div class="wb"><div class="col" style="height:70%"></div><div class="dl">M</div></div>
+              <div class="wb"><div class="col" style="height:48%"></div><div class="dl">M</div></div>
+              <div class="wb"><div class="col" style="height:85%"></div><div class="dl">J</div></div>
+              <div class="wb miss"><div class="col" style="height:30%"></div><div class="dl">V</div></div>
+              <div class="wb"><div class="col" style="height:92%"></div><div class="dl">S</div></div>
+              <div class="wb"><div class="col" style="height:78%"></div><div class="dl">D</div></div>
+            </div>
+          </div>
+
+          <div class="kgrid r r3">
+            <div class="mcard"><div class="ico" style="background:rgba(201,255,60,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--lime)" stroke-width="2" stroke-linecap="round"><path d="M5 13l4 4L19 7"/></svg></div><div class="v">86<small>%</small></div><div class="k">Objectifs respectés</div></div>
+            <div class="mcard"><div class="ico" style="background:rgba(255,122,83,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--coral)" stroke-width="2" stroke-linecap="round"><path d="M12 2c1 3.5-1.5 4.5-1.5 7A3.5 3.5 0 0014 11c0-2 2-2.5 2-4 2 2 3 4.5 3 7a7 7 0 11-14 0c0-4 3.5-6 4-9z"/></svg></div><div class="v">−9 800<small> kcal</small></div><div class="k">Déficit cumulé</div></div>
+            <div class="mcard"><div class="ico" style="background:rgba(91,209,255,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--sky)" stroke-width="2" stroke-linecap="round"><path d="M12 3v18M5 10l7-7 7 7"/></svg></div><div class="v">14<small> jours</small></div><div class="k">Série en cours</div></div>
+            <div class="mcard"><div class="ico" style="background:rgba(183,155,255,.12)"><svg viewBox="0 0 24 24" fill="none" stroke="var(--violet)" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z"/></svg></div><div class="v">7h12<small></small></div><div class="k">Sommeil moyen</div></div>
+          </div>
+
+          <div class="section-h r r4"><h3>Récompenses</h3><a>Niveau 7</a></div>
+          <div class="badgewrap r r4">
+            <div class="bdg">🔥<span>14 jours</span></div>
+            <div class="bdg">💧<span>Hydraté</span></div>
+            <div class="bdg">🏃<span>10k pas</span></div>
+            <div class="bdg lock">🔒<span>Marathon</span></div>
+          </div>
+        </section>
+
+        <!-- ============ PROFIL ============ -->
+        <section class="page" data-page="profil">
+          <div class="profhero r r1">
+            <div class="av">SA</div>
+            <h2>Sébastien Afonso</h2>
+            <div class="sub">Objectif : perte de poids · 78.6 → 74 kg</div>
+          </div>
+
+          <div class="prem r r2">
+            <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#3a2600" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l4 5 5-7 5 7 4-5v11H3z"/></svg></div>
+            <div><b>BODYUP Premium</b><span>IA illimitée · plans sportifs · rapports PDF</span></div>
+            <button class="go">Essayer</button>
+          </div>
+
+          <div class="section-h" style="margin-top:6px"><h3>Objectif intelligent</h3></div>
+          <div class="plist r r3">
+            <div class="prow"><div class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></div>BMR<span class="val">1 690 kcal</span></div>
+            <div class="prow"><div class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 17l6-6 4 4 8-8"/></svg></div>TDEE<span class="val">2 480 kcal</span></div>
+            <div class="prow"><div class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v20M2 12h20"/></svg></div>Déficit quotidien<span class="val">−480 kcal</span></div>
+            <div class="prow"><div class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="5" width="16" height="16" rx="3"/><path d="M8 3v4M16 3v4M4 11h16"/></svg></div>Date estimée<span class="val">12 sept. 2026</span></div>
+          </div>
+
+          <div class="section-h"><h3>Connexions santé</h3></div>
+          <div class="sync r r4">
+            <div class="synccard"><svg viewBox="0 0 24 24" fill="none" stroke="var(--coral)" stroke-width="2"><path d="M12 21s-7-4.5-9.5-9C1 8.5 3 5 6.5 5 9 5 12 8 12 8s3-3 5.5-3C21 5 23 8.5 21.5 12 19 16.5 12 21 12 21z"/></svg><b>Apple Health</b><span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>Connecté</span></div>
+            <div class="synccard"><svg viewBox="0 0 24 24" fill="none" stroke="var(--sky)" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg><b>Google Fit</b><span><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 13l4 4L19 7"/></svg>Connecté</span></div>
+          </div>
+
+          <div class="plist r r5" style="margin-top:14px">
+            <div class="prow"><div class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a7 7 0 00-7 7c0 5-2 6-2 6h18s-2-1-2-6a7 7 0 00-7-7z"/><path d="M10 20a2 2 0 004 0"/></svg></div>Notifications<span class="ch">›</span></div>
+            <div class="prow"><div class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9 12h6M12 9v6"/></svg></div>Régime & allergies<span class="ch">›</span></div>
+            <div class="prow"><div class="pic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>Confidentialité<span class="ch">›</span></div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- ============ TAB BAR ============ -->
+      <nav class="tabbar">
+        <div class="tabinner">
+          <button class="tab on" data-go="home">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8M5 9v11h5v-6h4v6h5V9"/></svg>Accueil</button>
+          <button class="tab" data-go="journal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M9 9h6M9 13h6M9 17h3"/></svg>Journal</button>
+          <button class="tab" data-go="repas">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3v8a2 2 0 002 2v8M5 3v4M8 3v4M19 3c-2 0-3 2-3 5s1 4 1 4v9"/></svg>Repas IA</button>
+          <button class="tab scan" data-go="scan">
+            <span class="fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9a2 2 0 012-2h1l1.5-2h9L19 7h1a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3.5"/></svg></span>Scan</button>
+          <button class="tab" data-go="exo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5l11 11M5 8l-1.5-1.5M19 16l1.5 1.5M3 10l3 3M18 11l3 3M8 3l3 3M13 18l3 3"/></svg>Exercices</button>
+          <button class="tab" data-go="coach">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/></svg>Coach IA</button>
+          <button class="tab" data-go="stats">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Stats</button>
+        </div>
+      </nav>
+
+    </div>
+  </div>
+</div>
+
+<div class="hint">Touchez les onglets pour naviguer · Mobile-first responsive</div>
+
+<script>
+const pages = document.querySelectorAll('.page');
+const tabs = document.querySelectorAll('.tab');
+const view = document.getElementById('view');
+function go(name){
+  pages.forEach(p=>p.classList.toggle('active', p.dataset.page===name));
+  tabs.forEach(t=>t.classList.toggle('on', t.dataset.go===name));
+  view.scrollTop = 0;
+  if(name==='home') animateRing();
+}
+tabs.forEach(t=>t.addEventListener('click',()=>go(t.dataset.go)));
+
+/* calorie ring animation */
+const ring = document.getElementById('calRing');
+const big = document.getElementById('calBig');
+const CIRC = 389.6, target = 600, goal = 2000;
+function animateRing(){
+  const pct = target/goal;
+  ring.style.transition='none';
+  ring.style.strokeDashoffset = CIRC;
+  big.textContent='0';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    ring.style.transition='stroke-dashoffset 1.4s cubic-bezier(.2,.8,.2,1)';
+    ring.style.strokeDashoffset = CIRC*(1-pct);
+  }));
+  let s=0; const t0=performance.now();
+  (function tick(now){
+    const k=Math.min((now-t0)/1400,1);
+    const e=1-Math.pow(1-k,3);
+    big.textContent = Math.round(target*e).toLocaleString('fr-FR');
+    if(k<1) requestAnimationFrame(tick);
+  })(performance.now());
+}
+animateRing();
+
+/* quick chip -> fill composer */
+document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
+  const inp=document.querySelector('.composer input'); inp.value=c.textContent; inp.focus();
+}));
+/* meal tabs */
+document.querySelectorAll('.mtab').forEach(m=>m.addEventListener('click',()=>{
+  document.querySelectorAll('.mtab').forEach(x=>x.classList.remove('on')); m.classList.add('on');
+}));
+/* scan modes */
+document.querySelectorAll('.smode').forEach(m=>m.addEventListener('click',()=>{
+  document.querySelectorAll('.smode').forEach(x=>x.classList.remove('on')); m.classList.add('on');
+}));
+</script>
+</body>
+</html>
