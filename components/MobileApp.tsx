@@ -6,12 +6,14 @@ import s from "@/styles/mobile.module.css";
 import { Icon, type IconName } from "./Icon";
 import { CalorieRing } from "./CalorieRing";
 import { fr } from "@/lib/nutrition";
-import {
-  journalMeals, workouts, recipes, coachThread, coachChips, badges,
-  shoppingList, progressTimeline,
-} from "@/lib/data";
+import { useAuth } from "@/lib/auth";
+import { useDay, type NewFood } from "@/lib/useDay";
+import type { Profile } from "@/lib/supabase";
+import { workouts, recipes, coachThread, coachChips, badges, shoppingList, progressTimeline } from "@/lib/data";
 
 type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil" | "courses" | "progress";
+type Day = ReturnType<typeof useDay>;
+type MealKey = "petit-dej" | "dejeuner" | "collation" | "diner";
 
 const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: "home", label: "Accueil", icon: "home" },
@@ -23,8 +25,26 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: "stats", label: "Stats", icon: "stats" },
 ];
 
+const MEAL_DEFS: { key: MealKey; emoji: string; tint: string; name: string; color: string }[] = [
+  { key: "petit-dej", emoji: "🍳", tint: "rgba(255,194,75,.13)", name: "Petit-déjeuner", color: "var(--amber)" },
+  { key: "dejeuner", emoji: "🥗", tint: "rgba(201,255,60,.13)", name: "Déjeuner", color: "var(--lime)" },
+  { key: "collation", emoji: "🍎", tint: "rgba(255,122,83,.13)", name: "Collation", color: "var(--coral)" },
+  { key: "diner", emoji: "🌙", tint: "rgba(183,155,255,.13)", name: "Dîner", color: "var(--violet)" },
+];
+
+const macroGoals = (target: number) => ({
+  p: Math.round((target * 0.3) / 4),
+  c: Math.round((target * 0.4) / 4),
+  f: Math.round((target * 0.3) / 9),
+});
+
 export default function MobileApp() {
+  const { profile, user } = useAuth();
+  const day = useDay(user?.id);
   const [tab, setTab] = useState<Tab>("home");
+  const [addMeal, setAddMeal] = useState<MealKey | null>(null);
+
+  const target = profile?.calorie_target ?? 2000;
 
   return (
     <div className={s.stage}>
@@ -34,15 +54,13 @@ export default function MobileApp() {
           <b>BODYUP</b>
         </div>
         <h1>Ton coach santé <em>IA</em>, dans une seule main.</h1>
-        <p>Nutrition, activité, hydratation et accompagnement personnalisé. Enregistre un repas en moins de 3 gestes — l&apos;IA fait le reste.</p>
+        <p>Nutrition, activité, hydratation et accompagnement personnalisé. Tes données sont synchronisées sur tous tes appareils.</p>
         <div className={s.pillrow}>
-          <span className={s.pill}><span className={s.d} />Scan photo IA</span>
-          <span className={s.pill}><span className={s.d} style={{ background: "var(--coral)" }} />Coach 24/7</span>
-          <span className={s.pill}><span className={s.d} style={{ background: "var(--sky)" }} />Apple Health · Google Fit</span>
-          <span className={s.pill}><span className={s.d} style={{ background: "var(--violet)" }} />Repas générés par IA</span>
+          <span className={s.pill}><span className={s.d} />Compte synchronisé</span>
+          <span className={s.pill}><span className={s.d} style={{ background: "var(--coral)" }} />Journal sauvegardé</span>
+          <span className={s.pill}><span className={s.d} style={{ background: "var(--sky)" }} />Plan personnalisé</span>
         </div>
         <div className={s.demolinks}>
-          <Link href="/onboarding"><Icon name="arrowRight" size={16} /> Revoir l&apos;onboarding</Link>
           <Link href="/tablet" className={s.alt}><Icon name="tablet" size={16} /> Version tablette</Link>
         </div>
       </aside>
@@ -52,18 +70,26 @@ export default function MobileApp() {
           <StatusBar />
           <div className={s.view}>
             <div className={s.page} key={tab}>
-              {tab === "home" && <HomeScreen onAvatar={() => setTab("profil")} />}
-              {tab === "journal" && <JournalScreen />}
-              {tab === "repas" && <RepasScreen go={setTab} />}
-              {tab === "scan" && <ScanScreen />}
-              {tab === "exo" && <ExoScreen />}
+              {tab === "home" && <HomeScreen profile={profile} day={day} target={target} onAvatar={() => setTab("profil")} />}
+              {tab === "journal" && <JournalScreen day={day} onAdd={(m) => setAddMeal(m)} />}
+              {tab === "repas" && <RepasScreen day={day} go={setTab} />}
+              {tab === "scan" && <ScanScreen onValidate={() => setAddMeal("dejeuner")} />}
+              {tab === "exo" && <ExoScreen day={day} target={target} />}
               {tab === "coach" && <CoachScreen />}
-              {tab === "stats" && <StatsScreen go={setTab} />}
-              {tab === "profil" && <ProfilScreen />}
+              {tab === "stats" && <StatsScreen profile={profile} go={setTab} />}
+              {tab === "profil" && <ProfilScreen profile={profile} email={user?.email ?? ""} />}
               {tab === "courses" && <CoursesScreen back={() => setTab("repas")} />}
-              {tab === "progress" && <ProgressScreen back={() => setTab("stats")} />}
+              {tab === "progress" && <ProgressScreen profile={profile} back={() => setTab("stats")} />}
             </div>
           </div>
+
+          {addMeal && (
+            <AddFoodSheet
+              defaultMeal={addMeal}
+              onClose={() => setAddMeal(null)}
+              onSave={async (food) => { await day.addEntry(food); setAddMeal(null); setTab("journal"); }}
+            />
+          )}
 
           <nav className={s.tabbar}>
             <div className={s.tabinner}>
@@ -83,7 +109,7 @@ export default function MobileApp() {
         </div>
       </div>
 
-      <div className={s.hint}>Touchez les onglets pour naviguer · Mobile-first responsive</div>
+      <div className={s.hint}>App connectée · données synchronisées via Supabase</div>
     </div>
   );
 }
@@ -101,60 +127,72 @@ function StatusBar() {
 }
 
 /* ---------------- ACCUEIL ---------------- */
-function HomeScreen({ onAvatar }: { onAvatar: () => void }) {
+function HomeScreen({ profile, day, target, onAvatar }: { profile: Profile | null; day: Day; target: number; onAvatar: () => void }) {
+  const remaining = target - day.consumed + day.burned;
+  const goals = macroGoals(target);
+  const name = profile?.display_name ?? "toi";
+  const initials = (name[0] ?? "?").toUpperCase();
+  const pct = (v: number, g: number) => Math.min(Math.round((v / g) * 100), 100);
+
   return (
     <>
       <div className={`${s.phead} ${s.r} ${s.r1}`}>
         <div>
-          <div className={s.hi}>Lundi 29 juin · Bonjour</div>
-          <h2>Sébastien</h2>
-          <span className={s.flame}><Icon name="flame" size={14} /> 14 jours de suite</span>
+          <div className={s.hi}>Bonjour</div>
+          <h2>{name}</h2>
+          <span className={s.flame}><Icon name="flame" size={14} /> {day.consumed > 0 ? "Journée en cours" : "Commence ta journée"}</span>
         </div>
-        <button className={s.ava} onClick={onAvatar} style={{ cursor: "pointer", border: "1px solid var(--card-bd)" }}>SA</button>
+        <button className={s.ava} onClick={onAvatar} style={{ cursor: "pointer", border: "1px solid var(--card-bd)" }}>{initials}</button>
       </div>
 
       <div className={`${s.hero} ${s.r} ${s.r2}`}>
         <div className={s.ringwrap}>
-          <CalorieRing value={600} fraction={600 / 2000} />
+          <CalorieRing value={Math.max(remaining, 0)} fraction={remaining / target} trigger={`${day.consumed}-${day.burned}`} />
           <div className={s.statlist}>
-            <div className={s.statline}><span className={s.dot} style={{ background: "var(--lime)" }} /><div className={s.t}><span>Objectif</span><b>2 000</b></div></div>
-            <div className={s.statline}><span className={s.dot} style={{ background: "var(--coral)" }} /><div className={s.t}><span>Consommé</span><b>1 700</b></div></div>
-            <div className={s.statline}><span className={s.dot} style={{ background: "var(--sky)" }} /><div className={s.t}><span>Brûlé</span><b>+300</b></div></div>
+            <div className={s.statline}><span className={s.dot} style={{ background: "var(--lime)" }} /><div className={s.t}><span>Objectif</span><b>{fr(target)}</b></div></div>
+            <div className={s.statline}><span className={s.dot} style={{ background: "var(--coral)" }} /><div className={s.t}><span>Consommé</span><b>{fr(day.consumed)}</b></div></div>
+            <div className={s.statline}><span className={s.dot} style={{ background: "var(--sky)" }} /><div className={s.t}><span>Brûlé</span><b>+{fr(day.burned)}</b></div></div>
           </div>
         </div>
       </div>
 
       <div className={`${s.macros} ${s.r} ${s.r3}`}>
-        <MacroBar label="Protéines" val={98} max={120} pct={82} color="var(--lime)" />
-        <MacroBar label="Glucides" val={160} max={220} pct={73} color="var(--amber)" />
-        <MacroBar label="Lipides" val={52} max={65} pct={80} color="var(--coral)" />
+        <MacroBar label="Protéines" val={day.macros.p} max={goals.p} pct={pct(day.macros.p, goals.p)} color="var(--lime)" />
+        <MacroBar label="Glucides" val={day.macros.c} max={goals.c} pct={pct(day.macros.c, goals.c)} color="var(--amber)" />
+        <MacroBar label="Lipides" val={day.macros.f} max={goals.f} pct={pct(day.macros.f, goals.f)} color="var(--coral)" />
       </div>
 
       <div className={`${s.mgrid} ${s.r} ${s.r4}`}>
-        <Metric icon="steps" tint="rgba(91,209,255,.12)" color="var(--sky)" trend={{ txt: "↑ 12%", up: true }} v="8 240" unit=" pas" k="Objectif 10 000" />
-        <Metric icon="trend" tint="rgba(201,255,60,.12)" color="var(--lime)" trend={{ txt: "−0.4 kg", up: false }} v="78.6" unit=" kg" k="Cible 74 kg" />
-        <Metric icon="flameLine" tint="rgba(255,122,83,.12)" color="var(--coral)" v="300" unit=" kcal" k="Brûlées aujourd'hui" />
-        <Metric icon="clock" tint="rgba(183,155,255,.12)" color="var(--violet)" v="87" unit="/100" k="Score santé" />
+        <Metric icon="trend" tint="rgba(201,255,60,.12)" color="var(--lime)" v={profile?.weight_kg ? String(profile.weight_kg) : "—"} unit=" kg" k={`Cible ${profile?.target_kg ?? "—"} kg`} />
+        <Metric icon="flameLine" tint="rgba(255,122,83,.12)" color="var(--coral)" v={fr(day.burned)} unit=" kcal" k="Brûlées aujourd'hui" />
+        <Metric icon="clock" tint="rgba(91,209,255,.12)" color="var(--sky)" v={fr(Math.max(remaining, 0))} unit=" kcal" k="Restantes" />
+        <Metric icon="check" tint="rgba(183,155,255,.12)" color="var(--violet)" v={String(day.entries.length)} unit=" repas" k="Enregistrés" />
       </div>
 
       <div className={`${s.water} ${s.r} ${s.r5}`}>
-        <div className={s.lab}><b>1.4 L</b>/ 2.2 L</div>
+        <div className={s.lab}><b>{(day.glasses * 0.25).toFixed(1)} L</b>/ 2.0 L</div>
         <div className={s.glasses}>
-          {[1, 1, 1, 1, 0, 0].map((g, i) => <div key={i} className={`${s.gl} ${g ? s.f : ""}`} />)}
+          {Array.from({ length: 8 }).map((_, i) => <div key={i} className={`${s.gl} ${i < day.glasses ? s.f : ""}`} />)}
         </div>
-        <button className={s.addw}>+</button>
+        <button className={s.addw} onClick={() => day.setWater(1)}>+</button>
       </div>
 
-      <div className={`${s.sectionH} ${s.r} ${s.r6}`}><h3>Analyse IA</h3><a>Tout voir</a></div>
+      <div className={`${s.sectionH} ${s.r} ${s.r6}`}><h3>Analyse IA</h3></div>
       <div className={`${s.insight} ${s.r} ${s.r6}`}>
         <div className={s.orb}><Icon name="spark" size={20} /></div>
         <div>
-          <p>Tu manques de <b>protéines depuis 4 jours</b>. Un dîner riche en protéines ce soir t&apos;aiderait à atteindre ton objectif musculaire.</p>
-          <span className={s.tag}>Détecté par l&apos;analyse des habitudes</span>
+          <p>{insightText(remaining, day.macros.p, goals.p)}</p>
+          <span className={s.tag}>Calculé à partir de ton journal du jour</span>
         </div>
       </div>
     </>
   );
+}
+
+function insightText(remaining: number, prot: number, protGoal: number) {
+  if (remaining < 0) return <>Tu as <b>dépassé ton objectif</b> de {fr(-remaining)} kcal. Une marche ou une séance rééquilibrerait ta journée.</>;
+  if (prot < protGoal * 0.6) return <>Il te reste <b>{fr(remaining)} kcal</b> et tu es en dessous de ton objectif protéines. Vise un repas riche en protéines.</>;
+  return <>Bon rythme : <b>{fr(remaining)} kcal disponibles</b>. Continue comme ça pour rester dans ton objectif.</>;
 }
 
 function MacroBar({ label, val, max, pct, color }: { label: string; val: number; max: number; pct: number; color: string }) {
@@ -178,48 +216,101 @@ function Metric({ icon, tint, color, trend, v, unit, k }: { icon: IconName; tint
 }
 
 /* ---------------- JOURNAL ---------------- */
-function JournalScreen() {
+function JournalScreen({ day, onAdd }: { day: Day; onAdd: (m: MealKey) => void }) {
   const delay = [s.r1, s.r2, s.r3, s.r4];
   return (
     <>
       <div className={`${s.phead} ${s.r} ${s.r1}`}>
         <div><div className={s.hi}>Aujourd&apos;hui</div><h2>Journal</h2></div>
-        <div className={s.ava} style={{ fontSize: 13, lineHeight: 1.1, textAlign: "center" }}>1700<br /><span style={{ fontSize: 9, color: "var(--txt-2)" }}>kcal</span></div>
+        <div className={s.ava} style={{ fontSize: 13, lineHeight: 1.1, textAlign: "center" }}>{fr(day.consumed)}<br /><span style={{ fontSize: 9, color: "var(--txt-2)" }}>kcal</span></div>
       </div>
-      {journalMeals.map((m, i) => (
-        <div key={m.key} className={`${s.meal} ${s.r} ${delay[i]} ${m.empty ? s.dashed : ""}`}>
-          <div className={s.mh}>
-            <div className={s.lft}>
-              <div className={s.em} style={{ background: m.tint }}>{m.emoji}</div>
-              <div><b>{m.name}</b><span>{m.empty ? "Non enregistré" : `${m.kcal} kcal · ${m.items.length} aliments`}</span></div>
-            </div>
-            <div className={s.kc} style={{ color: m.color }}>{m.kcal ?? "—"}</div>
-          </div>
-          {m.empty ? (
-            <button className={s.addmeal}><Icon name="plus" size={16} /> Ajouter un repas</button>
-          ) : (
-            m.items.map((it) => (
-              <div key={it.name} className={s.fitem}>
-                <div className={s.nm}>{it.name}<small>{it.qty}</small></div>
-                <div className={s.c}>{it.kcal} kcal</div>
+      {MEAL_DEFS.map((m, i) => {
+        const items = day.entries.filter((e) => e.meal_type === m.key);
+        const sum = items.reduce((n, e) => n + e.kcal, 0);
+        return (
+          <div key={m.key} className={`${s.meal} ${s.r} ${delay[i]} ${items.length === 0 ? s.dashed : ""}`}>
+            <div className={s.mh}>
+              <div className={s.lft}>
+                <div className={s.em} style={{ background: m.tint }}>{m.emoji}</div>
+                <div><b>{m.name}</b><span>{items.length ? `${fr(sum)} kcal · ${items.length} aliment${items.length > 1 ? "s" : ""}` : "Non enregistré"}</span></div>
               </div>
-            ))
-          )}
-        </div>
-      ))}
+              <div className={s.kc} style={{ color: items.length ? m.color : "var(--txt-3)" }}>{items.length ? fr(sum) : "—"}</div>
+            </div>
+            {items.map((it) => (
+              <div key={it.id} className={s.fitem}>
+                <div className={s.nm}>{it.name}{it.qty && <small>{it.qty}</small>}</div>
+                <div className={s.c} style={{ display: "flex", alignItems: "center" }}>
+                  {fr(it.kcal)} kcal
+                  <button className={s.delx} onClick={() => day.deleteEntry(it.id)} aria-label="Supprimer">✕</button>
+                </div>
+              </div>
+            ))}
+            <button className={s.addmeal} onClick={() => onAdd(m.key)} style={items.length ? { marginTop: 10 } : undefined}>
+              <Icon name="plus" size={16} /> Ajouter un aliment
+            </button>
+          </div>
+        );
+      })}
     </>
   );
 }
 
-/* ---------------- SCAN IA ---------------- */
-function ScanScreen() {
+/* ---------------- AJOUT D'ALIMENT (modal) ---------------- */
+function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; onClose: () => void; onSave: (f: NewFood) => Promise<void> }) {
+  const [meal, setMeal] = useState<MealKey>(defaultMeal);
+  const [name, setName] = useState("");
+  const [kcal, setKcal] = useState("");
+  const [p, setP] = useState("");
+  const [c, setC] = useState("");
+  const [f, setF] = useState("");
+  const [qty, setQty] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    if (!name || !kcal) return;
+    setBusy(true);
+    await onSave({
+      meal_type: meal, name, qty: qty || null,
+      kcal: parseInt(kcal) || 0, protein: parseInt(p) || 0, carbs: parseInt(c) || 0, fat: parseInt(f) || 0,
+    });
+  };
+
+  return (
+    <div className={s.modalwrap} onClick={onClose}>
+      <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
+        <h3>Ajouter un aliment <span className={s.x} onClick={onClose}>✕</span></h3>
+        <div className={s.mealpick}>
+          {MEAL_DEFS.map((m) => (
+            <button key={m.key} className={meal === m.key ? s.on : ""} onClick={() => setMeal(m.key)}>{m.emoji} {m.name.split("-")[0].split(" ")[0]}</button>
+          ))}
+        </div>
+        <label>Aliment</label>
+        <input className={s.inp} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex : Poulet grillé + riz" autoFocus />
+        <label>Quantité (optionnel)</label>
+        <input className={s.inp} value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Ex : 320 g" />
+        <label>Calories (kcal)</label>
+        <input className={s.inp} type="number" inputMode="numeric" value={kcal} onChange={(e) => setKcal(e.target.value)} placeholder="520" />
+        <label>Macros (g) — protéines / glucides / lipides</label>
+        <div className={s.row3}>
+          <input className={s.inp} type="number" inputMode="numeric" value={p} onChange={(e) => setP(e.target.value)} placeholder="P" />
+          <input className={s.inp} type="number" inputMode="numeric" value={c} onChange={(e) => setC(e.target.value)} placeholder="G" />
+          <input className={s.inp} type="number" inputMode="numeric" value={f} onChange={(e) => setF(e.target.value)} placeholder="L" />
+        </div>
+        <button className={s.savebtn} onClick={save} disabled={busy || !name || !kcal}>{busy ? "Ajout…" : "Ajouter au journal"}</button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- SCAN IA (démo) ---------------- */
+function ScanScreen({ onValidate }: { onValidate: () => void }) {
   const [mode, setMode] = useState(0);
   const modes: { icon: IconName; label: string }[] = [
     { icon: "camera", label: "Photo" }, { icon: "barcode", label: "Code-barres" }, { icon: "mic", label: "Vocal" },
   ];
   return (
     <>
-      <div className={`${s.phead} ${s.r} ${s.r1}`}><div><div className={s.hi}>Reconnaissance instantanée</div><h2>Scan IA</h2></div></div>
+      <div className={`${s.phead} ${s.r} ${s.r1}`}><div><div className={s.hi}>Reconnaissance instantanée</div><h2>Scan IA <span className={s.demoflag}>DÉMO</span></h2></div></div>
       <div className={`${s.scanmodes} ${s.r} ${s.r2}`}>
         {modes.map((m, i) => (
           <div key={m.label} className={`${s.smode} ${mode === i ? s.on : ""}`} onClick={() => setMode(i)}>
@@ -241,27 +332,28 @@ function ScanScreen() {
         </div>
         <div className={s.scanbtns}>
           <button className={`${s.btn} ${s.ghost}`}><Icon name="refresh" size={16} />Reprendre</button>
-          <button className={`${s.btn} ${s.prim}`}><Icon name="check" size={16} />Valider</button>
+          <button className={`${s.btn} ${s.prim}`} onClick={onValidate}><Icon name="check" size={16} />Ajouter</button>
         </div>
       </div>
     </>
   );
 }
 
-/* ---------------- EXERCICES ---------------- */
-function ExoScreen() {
+/* ---------------- EXERCICES (live : ajoute des kcal brûlées) ---------------- */
+function ExoScreen({ day, target }: { day: Day; target: number }) {
   const delay = [s.r3, s.r4, s.r5];
+  const remaining = target - day.consumed + day.burned;
   return (
     <>
       <div className={`${s.phead} ${s.r} ${s.r1}`}><div><div className={s.hi}>À la maison · Sans matériel</div><h2>Exercices</h2></div></div>
       <div className={`${s.budget} ${s.r} ${s.r2}`}>
         <div className={s.l}>Budget calorique en direct</div>
         <div className={s.calc}>
-          <span>2000</span><span className={s.op}>−</span><span>1700</span><span className={s.op}>+</span>
-          <span style={{ color: "var(--lime)" }}>300</span><span className={s.op}>=</span><span className={s.res}>600 kcal</span>
+          <span>{fr(target)}</span><span className={s.op}>−</span><span>{fr(day.consumed)}</span><span className={s.op}>+</span>
+          <span style={{ color: "var(--lime)" }}>{fr(day.burned)}</span><span className={s.op}>=</span><span className={s.res}>{fr(remaining)} kcal</span>
         </div>
       </div>
-      <div className={`${s.sectionH} ${s.r} ${s.r3}`} style={{ marginTop: 18 }}><h3>Séances rapides</h3><a>Filtrer</a></div>
+      <div className={`${s.sectionH} ${s.r} ${s.r3}`} style={{ marginTop: 18 }}><h3>Séances rapides</h3><a>Terminer → +kcal</a></div>
       {workouts.map((w, i) => (
         <div key={w.name} className={`${s.workout} ${s.r} ${delay[i]}`}>
           <div className={s.ph} style={{ background: w.tint }}>{w.emoji}</div>
@@ -273,25 +365,24 @@ function ExoScreen() {
             </div>
             <span className={`${s.diff} ${s[w.diffClass]}`}>{w.diff}</span>
           </div>
-          <button className={s.play}><Icon name="play" size={18} /></button>
+          <button className={s.play} onClick={() => day.addWorkout(w.name, w.kcal)} aria-label="Terminer la séance"><Icon name="check" size={18} /></button>
         </div>
       ))}
     </>
   );
 }
 
-/* ---------------- REPAS IA ---------------- */
-function RepasScreen({ go }: { go: (t: Tab) => void }) {
+/* ---------------- REPAS IA (ajoute au journal) ---------------- */
+function RepasScreen({ day, go }: { day: Day; go: (t: Tab) => void }) {
   const [meal, setMeal] = useState(0);
+  const [added, setAdded] = useState<Record<string, boolean>>({});
   const tabs = ["Dîner", "Petit-déj", "Déjeuner", "Collation"];
   const delay = [s.r3, s.r4];
   return (
     <>
       <div className={`${s.phead} ${s.r} ${s.r1}`}>
-        <div><div className={s.hi}>Adapté à tes 600 kcal restantes</div><h2>Repas IA</h2></div>
-        <button className={s.headact} onClick={() => go("courses")} aria-label="Liste de courses">
-          <Icon name="cart" /><span className={s.cnt}>13</span>
-        </button>
+        <div><div className={s.hi}>Idées adaptées à tes objectifs</div><h2>Repas IA <span className={s.demoflag}>DÉMO</span></h2></div>
+        <button className={s.headact} onClick={() => go("courses")} aria-label="Liste de courses"><Icon name="cart" /></button>
       </div>
       <div className={`${s.mealtabs} ${s.r} ${s.r2}`}>
         {tabs.map((t, i) => <div key={t} className={`${s.mtab} ${meal === i ? s.on : ""}`} onClick={() => setMeal(i)}>{t}</div>)}
@@ -315,7 +406,12 @@ function RepasScreen({ go }: { go: (t: Tab) => void }) {
               <div className={s.mm}><b>{rc.f}g</b><span>Lip</span></div>
             </div>
             <div className={s.acts}>
-              <button className={s.add}><Icon name="plus" size={15} />Au journal</button>
+              <button className={s.add} onClick={async () => {
+                await day.addEntry({ meal_type: "diner", name: rc.title, qty: "1 portion", kcal: rc.kcal, protein: rc.p, carbs: rc.c, fat: rc.f });
+                setAdded((a) => ({ ...a, [rc.title]: true }));
+              }}>
+                <Icon name={added[rc.title] ? "check" : "plus"} size={15} />{added[rc.title] ? "Ajouté" : "Au journal"}
+              </button>
               <button className={s.cartbtn} onClick={() => go("courses")} aria-label="Ajouter aux courses"><Icon name="cart" size={16} /></button>
             </div>
           </div>
@@ -325,7 +421,7 @@ function RepasScreen({ go }: { go: (t: Tab) => void }) {
   );
 }
 
-/* ---------------- COACH IA ---------------- */
+/* ---------------- COACH IA (démo) ---------------- */
 function CoachScreen() {
   const [draft, setDraft] = useState("");
   const delay = [s.r2, s.r3, s.r4];
@@ -333,7 +429,7 @@ function CoachScreen() {
     <>
       <div className={`${s.coachhead} ${s.r} ${s.r1}`}>
         <div className={s.orb}><Icon name="spark" size={24} /></div>
-        <div><b>Coach BODYUP</b><span className={s.on}><i />En ligne · 24h/24</span></div>
+        <div><b>Coach BODYUP <span className={s.demoflag}>DÉMO</span></b><span className={s.on}><i />En ligne · 24h/24</span></div>
       </div>
       <div className={s.chat}>
         {coachThread.map((m, i) => (
@@ -351,10 +447,11 @@ function CoachScreen() {
   );
 }
 
-/* ---------------- STATS ---------------- */
-function StatsScreen({ go }: { go: (t: Tab) => void }) {
+/* ---------------- STATS (démo visuelle) ---------------- */
+function StatsScreen({ profile, go }: { profile: Profile | null; go: (t: Tab) => void }) {
   const week = [55, 70, 48, 85, 30, 92, 78];
   const labels = ["L", "M", "M", "J", "V", "S", "D"];
+  const lost = profile?.weight_kg && profile?.target_kg ? (profile.weight_kg - profile.target_kg).toFixed(1) : "—";
   return (
     <>
       <div className={`${s.phead} ${s.r} ${s.r1}`}>
@@ -362,8 +459,8 @@ function StatsScreen({ go }: { go: (t: Tab) => void }) {
         <button className={s.headact} onClick={() => go("progress")} aria-label="Photos de progression"><Icon name="camera" /></button>
       </div>
       <div className={`${s.kpibig} ${s.r} ${s.r2}`}>
-        <div className={s.l}>Poids perdu depuis le début</div>
-        <div className={s.v}>−3.4 <small>kg en 6 sem.</small></div>
+        <div className={s.l}>Écart jusqu&apos;à ta cible</div>
+        <div className={s.v}>{lost} <small>kg à perdre</small></div>
         <div className={s.weekbars}>
           {week.map((h, i) => (
             <div key={i} className={`${s.wb} ${i === 4 ? s.miss : ""}`}><div className={s.col} style={{ height: `${h}%` }} /><div className={s.dl}>{labels[i]}</div></div>
@@ -371,12 +468,12 @@ function StatsScreen({ go }: { go: (t: Tab) => void }) {
         </div>
       </div>
       <div className={`${s.kgrid} ${s.r} ${s.r3}`}>
-        <Metric icon="check" tint="rgba(201,255,60,.12)" color="var(--lime)" v="86" unit="%" k="Objectifs respectés" />
-        <Metric icon="flameLine" tint="rgba(255,122,83,.12)" color="var(--coral)" v="−9 800" unit=" kcal" k="Déficit cumulé" />
-        <Metric icon="arrowUp" tint="rgba(91,209,255,.12)" color="var(--sky)" v="14" unit=" jours" k="Série en cours" />
-        <Metric icon="moon" tint="rgba(183,155,255,.12)" color="var(--violet)" v="7h12" unit="" k="Sommeil moyen" />
+        <Metric icon="check" tint="rgba(201,255,60,.12)" color="var(--lime)" v={profile?.calorie_target ? fr(profile.calorie_target) : "—"} unit=" kcal" k="Objectif quotidien" />
+        <Metric icon="trend" tint="rgba(255,194,75,.12)" color="var(--amber)" v={profile?.tdee ? fr(profile.tdee) : "—"} unit=" kcal" k="Dépense (TDEE)" />
+        <Metric icon="clock" tint="rgba(91,209,255,.12)" color="var(--sky)" v={profile?.bmr ? fr(profile.bmr) : "—"} unit=" kcal" k="Métabolisme (BMR)" />
+        <Metric icon="target" tint="rgba(183,155,255,.12)" color="var(--violet)" v={profile?.target_kg ? String(profile.target_kg) : "—"} unit=" kg" k="Poids cible" />
       </div>
-      <div className={`${s.sectionH} ${s.r} ${s.r4}`}><h3>Récompenses</h3><a>Niveau 7</a></div>
+      <div className={`${s.sectionH} ${s.r} ${s.r4}`}><h3>Récompenses <span className={s.demoflag}>DÉMO</span></h3></div>
       <div className={`${s.badgewrap} ${s.r} ${s.r4}`}>
         {badges.map((b) => <div key={b.label} className={`${s.bdg} ${b.locked ? s.lock : ""}`}>{b.emoji}<span>{b.label}</span></div>)}
       </div>
@@ -384,37 +481,39 @@ function StatsScreen({ go }: { go: (t: Tab) => void }) {
   );
 }
 
-/* ---------------- PROFIL ---------------- */
-function ProfilScreen() {
+/* ---------------- PROFIL (live + déconnexion) ---------------- */
+function ProfilScreen({ profile, email }: { profile: Profile | null; email: string }) {
+  const { signOut } = useAuth();
+  const name = profile?.display_name ?? "Utilisateur";
+  const initials = (name[0] ?? "?").toUpperCase();
+  const goalLabel = profile?.goal === "perte" ? "perte de poids" : profile?.goal === "masse" ? "prise de masse" : "maintien";
+  const deficit = profile?.tdee && profile?.calorie_target ? profile.tdee - profile.calorie_target : null;
   return (
     <>
       <div className={`${s.profhero} ${s.r} ${s.r1}`}>
-        <div className={s.av}>SA</div>
-        <h2>Sébastien Afonso</h2>
-        <div className={s.sub}>Objectif : perte de poids · 78.6 → 74 kg</div>
+        <div className={s.av}>{initials}</div>
+        <h2>{name}</h2>
+        <div className={s.sub}>{email}</div>
+        <div className={s.sub}>Objectif : {goalLabel}{profile?.weight_kg ? ` · ${profile.weight_kg} → ${profile.target_kg} kg` : ""}</div>
       </div>
       <div className={`${s.prem} ${s.r} ${s.r2}`}>
         <div className={s.ico}><Icon name="diamond" size={22} /></div>
         <div><b>BODYUP Premium</b><span>IA illimitée · plans sportifs · rapports PDF</span></div>
         <button className={s.go}>Essayer</button>
       </div>
-      <div className={s.sectionH} style={{ marginTop: 6 }}><h3>Objectif intelligent</h3></div>
+      <div className={s.sectionH} style={{ marginTop: 6 }}><h3>Ton plan calculé</h3></div>
       <div className={`${s.plist} ${s.r} ${s.r3}`}>
-        <ProfRow icon="clock" label="BMR" val="1 690 kcal" />
-        <ProfRow icon="trend" label="TDEE" val="2 480 kcal" />
-        <ProfRow icon="target" label="Déficit quotidien" val="−480 kcal" />
-        <ProfRow icon="calendar" label="Date estimée" val="12 sept. 2026" />
+        <ProfRow icon="clock" label="Métabolisme basal (BMR)" val={profile?.bmr ? `${fr(profile.bmr)} kcal` : "—"} />
+        <ProfRow icon="trend" label="Dépense quotidienne (TDEE)" val={profile?.tdee ? `${fr(profile.tdee)} kcal` : "—"} />
+        <ProfRow icon="target" label="Objectif calorique" val={profile?.calorie_target ? `${fr(profile.calorie_target)} kcal` : "—"} />
+        {deficit ? <ProfRow icon="plus" label="Déficit quotidien" val={`−${fr(deficit)} kcal`} /> : null}
       </div>
-      <div className={s.sectionH}><h3>Connexions santé</h3></div>
+      <div className={s.sectionH}><h3>Connexions santé <span className={s.demoflag}>BIENTÔT</span></h3></div>
       <div className={`${s.sync} ${s.r} ${s.r4}`}>
-        <div className={s.synccard}><Icon name="heart" size={24} style={{ color: "var(--coral)" }} /><b>Apple Health</b><span><Icon name="check" size={11} />Connecté</span></div>
-        <div className={s.synccard}><Icon name="fit" size={24} style={{ color: "var(--sky)" }} /><b>Google Fit</b><span><Icon name="check" size={11} />Connecté</span></div>
+        <div className={s.synccard}><Icon name="heart" size={24} style={{ color: "var(--coral)" }} /><b>Apple Health</b><span style={{ color: "var(--txt-3)" }}>À venir</span></div>
+        <div className={s.synccard}><Icon name="fit" size={24} style={{ color: "var(--sky)" }} /><b>Google Fit</b><span style={{ color: "var(--txt-3)" }}>À venir</span></div>
       </div>
-      <div className={`${s.plist} ${s.r} ${s.r5}`} style={{ marginTop: 14 }}>
-        <ProfRow icon="bell" label="Notifications" chevron />
-        <ProfRow icon="info" label="Régime & allergies" chevron />
-        <ProfRow icon="shield" label="Confidentialité" chevron />
-      </div>
+      <button className={s.logout} onClick={signOut}>Se déconnecter</button>
     </>
   );
 }
@@ -429,48 +528,40 @@ function ProfRow({ icon, label, val, chevron }: { icon: IconName; label: string;
   );
 }
 
-/* ---------------- LISTE DE COURSES ---------------- */
+/* ---------------- LISTE DE COURSES (démo) ---------------- */
 function CoursesScreen({ back }: { back: () => void }) {
   const initial = new Set<string>();
   shoppingList.forEach((a) => a.items.forEach((it) => { if (it.checked) initial.add(`${a.rayon}-${it.name}`); }));
   const [checked, setChecked] = useState<Set<string>>(initial);
-
   const total = shoppingList.reduce((n, a) => n + a.items.length, 0);
-  const toggle = (key: string) =>
-    setChecked((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
-
+  const toggle = (key: string) => setChecked((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const delay = [s.r2, s.r3, s.r4, s.r5];
   return (
     <>
       <div className={`${s.subhead} ${s.r} ${s.r1}`}>
         <button className={s.backbtn} onClick={back} aria-label="Retour"><Icon name="arrowLeft" size={18} /></button>
-        <div><div className={s.hi}>Générée depuis tes repas planifiés</div><h2>Liste de courses</h2></div>
+        <div><div className={s.hi}>Générée depuis tes repas</div><h2>Liste de courses</h2></div>
       </div>
-
       <div className={`${s.famsync} ${s.r} ${s.r1}`}>
         <Icon name="fit" size={18} />
         <span><b>Synchronisation familiale</b> active · 2 membres voient cette liste en temps réel.</span>
       </div>
-
       {shoppingList.map((a, i) => (
         <div key={a.rayon} className={`${s.rayon} ${s.r} ${delay[i]}`}>
           <div className={s.rayonh}><span className={s.em}>{a.emoji}</span>{a.rayon}<span className={s.ct}>{a.items.length} articles</span></div>
           <div className={s.slist}>
             {a.items.map((it) => {
-              const key = `${a.rayon}-${it.name}`;
-              const done = checked.has(key);
+              const key = `${a.rayon}-${it.name}`; const done = checked.has(key);
               return (
                 <div key={it.name} className={`${s.sitem} ${done ? s.done : ""}`} onClick={() => toggle(key)}>
                   <span className={s.cbox}><Icon name="check" size={13} /></span>
-                  <span className={s.snm}>{it.name}</span>
-                  <span className={s.sqty}>{it.qty}</span>
+                  <span className={s.snm}>{it.name}</span><span className={s.sqty}>{it.qty}</span>
                 </div>
               );
             })}
           </div>
         </div>
       ))}
-
       <div className={s.sfoot}>
         <div className={s.sprog}>
           <div className={s.bar}><i style={{ width: `${(checked.size / total) * 100}%` }} /></div>
@@ -482,46 +573,35 @@ function CoursesScreen({ back }: { back: () => void }) {
   );
 }
 
-/* ---------------- PHOTOS DE PROGRESSION ---------------- */
-function ProgressScreen({ back }: { back: () => void }) {
+/* ---------------- PHOTOS DE PROGRESSION (démo) ---------------- */
+function ProgressScreen({ profile, back }: { profile: Profile | null; back: () => void }) {
   const first = progressTimeline[0];
   const last = progressTimeline[progressTimeline.length - 1];
   const lost = (first.weight - last.weight).toFixed(1);
+  const toGo = profile?.target_kg ? (last.weight - profile.target_kg).toFixed(1) : "—";
   return (
     <>
       <div className={`${s.subhead} ${s.r} ${s.r1}`}>
         <button className={s.backbtn} onClick={back} aria-label="Retour"><Icon name="arrowLeft" size={18} /></button>
-        <div><div className={s.hi}>Avant / après · 5 mois</div><h2>Progression</h2></div>
+        <div><div className={s.hi}>Avant / après · 5 mois</div><h2>Progression <span className={s.demoflag}>DÉMO</span></h2></div>
         <button className={s.headact} aria-label="Ajouter une photo"><Icon name="camera" /></button>
       </div>
-
       <div className={`${s.compare} ${s.r} ${s.r2}`}>
-        <div className={`${s.cphoto} ${s.before}`}>🧍
-          <span className={s.ctag}>AVANT</span>
-          <div className={s.cw}><b>{first.weight} kg</b><span>{first.month} 2026</span></div>
-        </div>
-        <div className={`${s.cphoto} ${s.after}`}>🧍
-          <span className={s.ctag}>APRÈS</span>
-          <div className={s.cw}><b>{last.weight} kg</b><span>{last.month} 2026</span></div>
-        </div>
+        <div className={`${s.cphoto} ${s.before}`}>🧍<span className={s.ctag}>AVANT</span><div className={s.cw}><b>{first.weight} kg</b><span>{first.month} 2026</span></div></div>
+        <div className={`${s.cphoto} ${s.after}`}>🧍<span className={s.ctag}>APRÈS</span><div className={s.cw}><b>{last.weight} kg</b><span>{last.month} 2026</span></div></div>
       </div>
-
       <div className={`${s.cresult} ${s.r} ${s.r3}`}>
         <div className={s.big}>−{lost}<small> kg</small></div>
-        <div className={s.cr}>Tu as perdu <b>{lost} kg</b> en 5 mois.<br />Plus que {(last.weight - 74).toFixed(1)} kg avant ta cible.</div>
+        <div className={s.cr}>Tu as perdu <b>{lost} kg</b> en 5 mois.<br />Plus que {toGo} kg avant ta cible.</div>
       </div>
-
-      <div className={`${s.sectionH} ${s.r} ${s.r4}`}><h3>Évolution mensuelle</h3><a>Mensuel</a></div>
+      <div className={`${s.sectionH} ${s.r} ${s.r4}`}><h3>Évolution mensuelle</h3></div>
       <div className={`${s.timeline} ${s.r} ${s.r4}`}>
         {progressTimeline.map((p, i) => (
           <div key={p.month} className={`${s.tnode} ${i === progressTimeline.length - 1 ? s.last : ""}`}>
-            <div className={s.tph}>{p.emoji}</div>
-            <div className={s.tm}>{p.month}</div>
-            <div className={s.tw}>{p.weight} kg</div>
+            <div className={s.tph}>{p.emoji}</div><div className={s.tm}>{p.month}</div><div className={s.tw}>{p.weight} kg</div>
           </div>
         ))}
       </div>
-
       <button className={`${s.addphoto} ${s.r} ${s.r5}`}><Icon name="plus" size={16} /> Ajouter une photo ce mois-ci</button>
     </>
   );

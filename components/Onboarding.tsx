@@ -24,7 +24,13 @@ const DIETS = ["Omnivore", "Végétarien", "Vegan", "Keto", "Méditerranéen"];
 const ALLERGIES = ["Gluten", "Lactose", "Arachides", "Fruits de mer", "Œufs", "Soja"];
 const PACES = [{ v: 0.25, t: "0.25 kg", d: "/ semaine · doux" }, { v: 0.5, t: "0.5 kg", d: "/ semaine · sain" }, { v: 0.75, t: "0.75 kg", d: "/ semaine · soutenu" }];
 
-export default function Onboarding() {
+export interface OnboardingResult {
+  sexe: Sex; age: number; height: number; weight: number; target: number;
+  goal: Goal; activity: number; pace: number;
+  plan: ReturnType<typeof buildPlan>;
+}
+
+export default function Onboarding({ onComplete }: { onComplete?: (r: OnboardingResult) => Promise<void> } = {}) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [done, setDone] = useState(false);
@@ -51,8 +57,12 @@ export default function Onboarding() {
     (step === 5 && !!activity) ||
     ![1, 4, 5].includes(step);
 
-  const finish = () => {
+  const finish = async () => {
     setDone(true);
+    if (onComplete && plan && sexe && goal && activity) {
+      await onComplete({ sexe, age, height, weight, target, goal, activity, pace, plan });
+      return; // le parent (AppGate) bascule vers l'app via refreshProfile
+    }
     try { localStorage.setItem("bodyup_onboarded", "1"); } catch {}
     setTimeout(() => router.push("/"), 650);
   };

@@ -1,5 +1,10 @@
-import MobileApp from "@/components/MobileApp";
+import { AuthProvider } from "@/lib/auth";
+import AppGate from "@/components/AppGate";
 
 export default function Page() {
-  return <MobileApp />;
+  return (
+    <AuthProvider>
+      <AppGate />
+    </AuthProvider>
+  );
 }
