@@ -12,7 +12,16 @@ export function useDay(userId: string | undefined) {
   const [sleepMin, setSleepMin] = useState(0);
   const [burned, setBurned] = useState(0);
   const [loading, setLoading] = useState(true);
-  const date = todayISO();
+  const [date, setDate] = useState(todayISO());
+
+  // Bascule automatique au changement de jour (minuit local), même app ouverte.
+  useEffect(() => {
+    const check = () => setDate((d) => { const t = todayISO(); return d !== t ? t : d; });
+    const id = setInterval(check, 30000);
+    document.addEventListener("visibilitychange", check);
+    window.addEventListener("focus", check);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", check); window.removeEventListener("focus", check); };
+  }, []);
 
   const load = useCallback(async () => {
     if (!userId) return;

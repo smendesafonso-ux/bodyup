@@ -50,4 +50,9 @@ export interface FoodEntry {
   fat: number;
 }
 
-export const todayISO = () => new Date().toISOString().slice(0, 10);
+// Date LOCALE (pas UTC) → le compteur se remet à zéro à minuit heure locale.
+export const todayISO = () => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};

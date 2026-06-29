@@ -29,6 +29,18 @@
 @media(max-width:430px){
   .statusbar{display:none}
   .view{padding-top:calc(10px + env(safe-area-inset-top))}
+  .modalwrap{position:fixed}
+}
+/* Mode paysage (téléphone) : plein écran, contenu en colonne centrée */
+@media (orientation: landscape) and (max-height: 600px){
+  .stage{gap:0}
+  .pitch{display:none}
+  .phone{width:100vw;height:100dvh;max-height:none;border-radius:0;padding:0;box-shadow:none}
+  .screen{border-radius:0}
+  .statusbar{display:none}
+  .view{max-width:640px;width:100%;margin:0 auto;padding-top:calc(10px + env(safe-area-inset-top))}
+  .tabinner{max-width:640px;margin:0 auto}
+  .modalwrap{position:fixed}
 }
 
 .view{flex:1;overflow-y:auto;overflow-x:hidden;padding:6px 20px 120px;scrollbar-width:none}
