@@ -59,7 +59,7 @@ export function CalorieRing({
           style={{ transition: "stroke-dashoffset 1.4s cubic-bezier(.2,.8,.2,1)" }}
         />
       </svg>
-      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
         <span style={{ fontFamily: "var(--display)", fontWeight: 600, fontSize: big, lineHeight: 1, letterSpacing: "-.02em" }}>{fr(display)}</span>
         <span style={{ fontSize: 11, color: "var(--txt-2)", textTransform: "uppercase", letterSpacing: ".12em", marginTop: 5 }}>{label}</span>
       </div>
