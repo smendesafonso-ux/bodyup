@@ -10,6 +10,8 @@ export interface FoodHit {
   c100: number;
   f100: number;
   source: "base" | "off"; // base BODYUP ou Open Food Facts
+  nutriscore?: string | null; // a..e (code-barres uniquement)
+  nova?: number | null; // 1..4 (degré de transformation)
 }
 
 /** Recherche dans la table de référence BODYUP (aliments génériques). */
@@ -75,7 +77,7 @@ export async function lookupBarcode(code: string): Promise<FoodHit | null> {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 6000);
     const res = await fetch(
-      `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,product_name_fr,brands,nutriments`,
+      `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name,product_name_fr,brands,nutriments,nutriscore_grade,nova_group`,
       { signal: ctrl.signal }
     );
     clearTimeout(t);
@@ -87,6 +89,7 @@ export async function lookupBarcode(code: string): Promise<FoodHit | null> {
     const kcal = n["energy-kcal_100g"];
     const name = p.product_name_fr || p.product_name;
     if (!name || kcal == null) return null;
+    const grade = typeof p.nutriscore_grade === "string" ? p.nutriscore_grade.toLowerCase() : null;
     return {
       name: String(name).trim(),
       brand: p.brands ? String(p.brands).split(",")[0].trim() : null,
@@ -95,6 +98,8 @@ export async function lookupBarcode(code: string): Promise<FoodHit | null> {
       c100: round1(n.carbohydrates_100g),
       f100: round1(n.fat_100g),
       source: "off",
+      nutriscore: grade && "abcde".includes(grade) ? grade : null,
+      nova: typeof p.nova_group === "number" ? p.nova_group : null,
     };
   } catch {
     return null;

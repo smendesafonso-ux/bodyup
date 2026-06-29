@@ -266,6 +266,15 @@
 .bcam .bline{position:absolute;left:14%;right:14%;height:2px;background:var(--lime);box-shadow:0 0 12px var(--lime);top:50%;animation:scan 2s ease-in-out infinite}
 .bcam .bclose{position:absolute;top:12px;right:12px;width:38px;height:38px;border-radius:50%;background:rgba(7,10,8,.7);border:1px solid var(--card-bd);color:#fff;display:grid;place-items:center;cursor:pointer;font-size:18px;backdrop-filter:blur(6px)}
 .bcam .bhint{position:absolute;bottom:14px;left:0;right:0;text-align:center;font-size:12.5px;color:#fff;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+.scorebox{display:flex;align-items:center;gap:13px;background:var(--surface);border:1px solid var(--hair);border-radius:16px;padding:13px 15px;margin-bottom:14px}
+.scorebox .grade{width:50px;height:50px;border-radius:14px;display:grid;place-items:center;font-family:var(--display);font-weight:600;flex:0 0 auto;color:#0a1400;line-height:1}
+.scorebox .grade .num{font-size:21px}
+.scorebox .grade .den{font-size:10px;opacity:.7}
+.scorebox .grade.letter{color:#fff;font-size:24px}
+.scorebox .txt{flex:1;min-width:0}
+.scorebox .txt b{display:block;font-size:13px;margin-bottom:2px}
+.scorebox .txt span{font-size:12.5px;color:var(--txt-2);line-height:1.4}
+.scorebox .nova{font-size:11px;color:var(--txt-3);margin-top:3px;display:block}
 
 /* ---------- sub-screen header (back) ---------- */
 .subhead{display:flex;align-items:center;gap:13px;padding:8px 4px 18px}

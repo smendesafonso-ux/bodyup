@@ -40,6 +40,13 @@ const macroGoals = (target: number) => ({
   f: Math.round((target * 0.3) / 9),
 });
 
+const NUTRI_COLOR: Record<string, string> = { a: "#038141", b: "#85BB2F", c: "#FECB02", d: "#EE8100", e: "#E63E11" };
+const NUTRI_TEXT: Record<string, string> = { a: "#fff", b: "#1a2e00", c: "#3a2e00", d: "#fff", e: "#fff" };
+const NUTRI_LABEL: Record<string, string> = {
+  a: "Excellente qualité nutritionnelle", b: "Bonne qualité nutritionnelle",
+  c: "Qualité nutritionnelle moyenne", d: "Qualité nutritionnelle médiocre", e: "Mauvaise qualité nutritionnelle",
+};
+
 export default function MobileApp() {
   const { profile, user } = useAuth();
   const day = useDay(user?.id);
@@ -409,11 +416,16 @@ function ScanScreen({ day }: { day: Day }) {
   const [grams, setGrams] = useState("100");
   const [scanning, setScanning] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
   const modes: { icon: IconName; label: string }[] = [
     { icon: "camera", label: "Photo" }, { icon: "barcode", label: "Code-barres" }, { icon: "mic", label: "Vocal" },
   ];
 
-  const reset = () => { setPhoto(null); setBc(null); setErr(null); setCode(""); setGrams("100"); setScanning(false); };
+  const reset = () => { setPhoto(null); setBc(null); setErr(null); setCode(""); setGrams("100"); setScanning(false); setBusy(false); };
+
+  useEffect(() => {
+    if (photo || bc) resultRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [photo, bc]);
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -516,8 +528,28 @@ function ScanScreen({ day }: { day: Day }) {
       {err && <div className={`${s.scanerr} ${s.r}`}>{err}</div>}
 
       {calc && (
-        <div className={`${s.scancard} ${s.r}`}>
+        <div className={`${s.scancard} ${s.r}`} ref={resultRef}>
           <div className={s.ttl}><b>{resultName}</b>{photo && <span className={s.conf}>{Math.round(photo.confidence * 100)}% sûr</span>}</div>
+
+          {photo && typeof photo.score === "number" && (
+            <div className={s.scorebox}>
+              <div className={s.grade} style={{ background: photo.score >= 70 ? "var(--lime)" : photo.score >= 40 ? "var(--amber)" : "var(--coral)" }}>
+                <span className={s.num}>{photo.score}</span><span className={s.den}>/100</span>
+              </div>
+              <div className={s.txt}><b>Note santé</b><span>{photo.advice}</span></div>
+            </div>
+          )}
+          {bc && bc.nutriscore && (
+            <div className={s.scorebox}>
+              <div className={`${s.grade} ${s.letter}`} style={{ background: NUTRI_COLOR[bc.nutriscore], color: NUTRI_TEXT[bc.nutriscore] }}>{bc.nutriscore.toUpperCase()}</div>
+              <div className={s.txt}>
+                <b>Nutri-Score {bc.nutriscore.toUpperCase()}</b>
+                <span>{NUTRI_LABEL[bc.nutriscore]}</span>
+                {bc.nova ? <span className={s.nova}>Transformation NOVA {bc.nova}/4</span> : null}
+              </div>
+            </div>
+          )}
+
           <div className={s.qtyrow}>
             <input type="number" inputMode="numeric" value={grams} onChange={(e) => setGrams(e.target.value)} />
             <span className={s.u}>grammes</span>

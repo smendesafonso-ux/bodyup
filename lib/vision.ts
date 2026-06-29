@@ -10,6 +10,8 @@ export interface FoodAnalysis {
   protein: number;
   carbs: number;
   fat: number;
+  score?: number; // note santé 0–100
+  advice?: string; // avis nutritionnel court
   items: { name: string; grams: number; kcal: number }[];
 }
 

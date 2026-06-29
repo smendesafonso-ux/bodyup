@@ -31,6 +31,8 @@ const schema = {
     protein: { type: "integer" },
     carbs: { type: "integer" },
     fat: { type: "integer" },
+    score: { type: "integer", description: "Note santé de 0 (mauvais) à 100 (excellent)" },
+    advice: { type: "string", description: "Avis nutritionnel court (1 phrase) en français" },
     items: {
       type: "array",
       items: {
@@ -45,13 +47,15 @@ const schema = {
       },
     },
   },
-  required: ["name", "confidence", "grams", "kcal", "protein", "carbs", "fat", "items"],
+  required: ["name", "confidence", "grams", "kcal", "protein", "carbs", "fat", "score", "advice", "items"],
 };
 
 const PROMPT = `Tu es un nutritionniste. Analyse la photo de nourriture et estime au mieux :
 - le nom du plat (en français),
 - la portion totale visible en grammes,
 - les calories totales (kcal) et les macros (protéines, glucides, lipides en grammes) pour CETTE portion,
+- une note santé "score" de 0 à 100 (qualité nutritionnelle globale du plat),
+- un "advice" : un avis nutritionnel court et utile en français (1 phrase),
 - la liste des aliments distincts identifiés.
 Donne une estimation réaliste même si l'image est imparfaite. confidence reflète ta certitude (0 à 1).
 Ce sont des estimations, pas un avis médical.`;
