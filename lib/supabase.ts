@@ -20,6 +20,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 export interface Profile {
   id: string;
   display_name: string | null;
+  username: string | null;
   sexe: "homme" | "femme" | null;
   age: number | null;
   height_cm: number | null;

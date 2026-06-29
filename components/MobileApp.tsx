@@ -18,7 +18,7 @@ import { coachThread, coachChips, badges, progressTimeline } from "@/lib/data";
 import { exercises, intensityClass, type Exercise, type Intensity } from "@/lib/exercises";
 import { loadPantry, addPantryItem, addManyToBuy, setPantryStatus, removePantryItem, searchCatalog, STAPLES, type PantryItem } from "@/lib/pantry";
 import { mealCategories, mealsByCategory, mealLookup, type MealLite, type MealFull } from "@/lib/themealdb";
-import { loadConnections, sendInvite, acceptInvite, removeConnection, loadSharedData, SHARE_LABELS, ALL_CATS, type Connection, type ShareCat, type SharedData } from "@/lib/social";
+import { loadConnections, sendInvite, acceptInvite, removeConnection, loadSharedData, resolveUsername, setUsername, SHARE_LABELS, ALL_CATS, type Connection, type ShareCat, type SharedData } from "@/lib/social";
 
 type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil" | "courses" | "progress" | "partage";
 type Day = ReturnType<typeof useDay>;
@@ -1113,6 +1113,20 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
   const [stepsVal, setStepsVal] = useState("");
   const [sleepVal, setSleepVal] = useState("");
   const [busy, setBusy] = useState(false);
+  const [conns, setConns] = useState<Connection[]>([]);
+  const [picker, setPicker] = useState(false);
+  const [compare, setCompare] = useState<{ name: string; cats: ShareCat[] } | null>(null);
+  const [other, setOther] = useState<SharedData | null>(null);
+
+  useEffect(() => { loadConnections().then((cs) => setConns(cs.filter((c) => c.status === "accepted"))); }, []);
+  const selectCompare = async (c: Connection) => {
+    setPicker(false);
+    const oid = c.requester_id === user?.id ? c.addressee_id : c.requester_id;
+    const name = (c.requester_id === user?.id ? c.addressee_username : c.requester_username) ?? "?";
+    const tc = (c.requester_id === user?.id ? c.addressee_categories : c.requester_categories) as ShareCat[];
+    setCompare({ name, cats: tc }); setOther(null);
+    setOther(await loadSharedData(oid));
+  };
 
   const fmtSleep = (m: number) => (m > 0 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}` : "—");
 
@@ -1136,6 +1150,12 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
   const range = max - min || 1;
   const pts = ws.map((w, i) => { const x = ws.length > 1 ? (i / (ws.length - 1)) * 100 : 50; const y = 92 - ((w - min) / range) * 84; return `${x.toFixed(1)},${y.toFixed(1)}`; }).join(" ");
 
+  const myEvol = ws.length >= 2 ? ((ws[0] - ws[ws.length - 1]) / ws[0]) * 100 : null;
+  const ow = other ? other.weights.map((w) => Number(w.weight_kg)) : [];
+  const theirEvol = ow.length >= 2 ? ((ow[0] - ow[ow.length - 1]) / ow[0]) * 100 : null;
+  const fmtEvol = (v: number | null) => (v == null ? "—" : `${v >= 0 ? "−" : "+"}${Math.abs(v).toFixed(1)}%`);
+  const lead = (a: number | null, b: number | null): 0 | 1 | 2 => (a == null || b == null ? 0 : a > b ? 1 : b > a ? 2 : 0);
+
   const saveWeight = async () => {
     const v = parseFloat(wval);
     if (!v || !user) return;
@@ -1150,7 +1170,10 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
     <>
       <div className={`${s.phead} ${s.r} ${s.r1}`}>
         <div><div className={s.hi}>Ta progression</div><h2>Statistiques</h2></div>
-        <button className={s.headact} onClick={() => go("progress")} aria-label="Photos de progression"><Icon name="camera" /></button>
+        <div style={{ display: "flex", gap: 9 }}>
+          <button className={s.headact} onClick={() => setPicker(true)} aria-label="Comparer avec un proche"><Icon name="users" /></button>
+          <button className={s.headact} onClick={() => go("progress")} aria-label="Photos de progression"><Icon name="camera" /></button>
+        </div>
       </div>
 
       <div className={`${s.kpibig} ${s.r} ${s.r2}`}>
@@ -1171,6 +1194,22 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
           <div className={s.wempty}>Enregistre ton poids régulièrement (bouton « + Poids ») pour voir ta tendance ici.</div>
         )}
       </div>
+
+      {compare && other && (
+        <div className={`${s.kpibig} ${s.r} ${s.r2}`} style={{ background: "linear-gradient(165deg,rgba(183,155,255,.12),rgba(255,255,255,.02))", borderColor: "rgba(183,155,255,.25)" }}>
+          <div className={s.wsum}>
+            <div className={s.l}>Défi avec <b style={{ color: "var(--violet)" }}>{compare.name}</b></div>
+            <button className={s.wlog} style={{ background: "var(--card)", color: "var(--txt-2)" }} onClick={() => { setCompare(null); setOther(null); }}>Fermer</button>
+          </div>
+          <div className={s.cmpgrid}>
+            <div className={s.cmphead}><span /><span>Moi</span><span>{compare.name}</span></div>
+            {compare.cats.includes("poids") && <CmpRow label="Évolution poids" mine={fmtEvol(myEvol)} theirs={fmtEvol(theirEvol)} lead={lead(myEvol, theirEvol)} />}
+            {compare.cats.includes("pas") && <CmpRow label="Pas aujourd'hui" mine={fr(day.steps)} theirs={fr(other.steps)} lead={lead(day.steps, other.steps)} />}
+            {compare.cats.includes("pas") && <CmpRow label="Sommeil" mine={fmtSleep(day.sleepMin)} theirs={fmtSleep(other.sleepMin)} lead={lead(day.sleepMin, other.sleepMin)} />}
+            {!compare.cats.includes("poids") && !compare.cats.includes("pas") && <div className={s.pempty}>Cette personne ne partage pas de KPI comparables.</div>}
+          </div>
+        </div>
+      )}
 
       <div className={`${s.kgrid} ${s.r} ${s.r3}`}>
         <Metric icon="clock" tint="rgba(91,209,255,.12)" color="var(--sky)" v={fr(Math.max(remaining, 0))} unit=" kcal" k="Restantes aujourd'hui" />
@@ -1221,7 +1260,39 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
           </div>
         </div>
       )}
+
+      {picker && (
+        <div className={s.modalwrap} onClick={() => setPicker(false)}>
+          <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
+            <h3>Comparer avec… <span className={s.x} onClick={() => setPicker(false)}>✕</span></h3>
+            {conns.length === 0 ? (
+              <div className={s.pempty}>Aucun proche connecté. Ajoute-en un dans Profil → Partage.</div>
+            ) : (
+              conns.map((c) => {
+                const name = (c.requester_id === user?.id ? c.addressee_username : c.requester_username) ?? "?";
+                return (
+                  <div key={c.id} className={s.connrow} style={{ cursor: "pointer" }} onClick={() => selectCompare(c)}>
+                    <div className={s.av2}>{(name[0] ?? "?").toUpperCase()}</div>
+                    <div className={s.ce}><b>{name}</b><span>Voir le défi</span></div>
+                    <span className={s.ch}>›</span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
     </>
+  );
+}
+
+function CmpRow({ label, mine, theirs, lead }: { label: string; mine: string; theirs: string; lead: 0 | 1 | 2 }) {
+  return (
+    <div className={s.cmprow}>
+      <span className={s.cl}>{label}</span>
+      <span className={`${s.cv} ${lead === 1 ? s.win : ""}`}>{mine}</span>
+      <span className={`${s.cv} ${lead === 2 ? s.win : ""}`}>{theirs}</span>
+    </div>
   );
 }
 
@@ -1406,38 +1477,51 @@ function ProgressScreen({ profile, back }: { profile: Profile | null; back: () =
   );
 }
 
-/* ---------------- PARTAGE ENTRE UTILISATEURS ---------------- */
+/* ---------------- PARTAGE ENTRE UTILISATEURS (par nom d'utilisateur) ---------------- */
 function PartageScreen({ back }: { back: () => void }) {
-  const { user } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const myId = user?.id ?? "";
-  const myEmail = (user?.email ?? "").toLowerCase();
+  const myUsername = profile?.username ?? null;
   const [conns, setConns] = useState<Connection[]>([]);
-  const [email, setEmail] = useState("");
+  const [uname, setUname] = useState("");
   const [cats, setCats] = useState<ShareCat[]>([...ALL_CATS]);
   const [msg, setMsg] = useState<string | null>(null);
   const [view, setView] = useState<Connection | null>(null);
+  const [editU, setEditU] = useState(false);
+  const [uval, setUval] = useState("");
 
   const load = useCallback(async () => { setConns(await loadConnections()); }, []);
   useEffect(() => { load(); }, [load]);
 
   const toggleCat = (c: ShareCat) => setCats((p) => (p.includes(c) ? p.filter((x) => x !== c) : [...p, c]));
+
+  const saveUsername = async () => {
+    if (!uval.trim() || !myId) return;
+    const err = await setUsername(myId, uval.trim());
+    if (err) { setMsg(err); return; }
+    setEditU(false); setUval(""); await refreshProfile();
+  };
+
   const invite = async () => {
-    if (!email.trim() || !myId) return;
-    if (email.trim().toLowerCase() === myEmail) { setMsg("C'est ta propre adresse 🙂"); return; }
-    const err = await sendInvite(myId, myEmail, email, cats);
+    if (!uname.trim() || !myId) return;
+    if (!myUsername) { setMsg("Choisis d'abord ton nom d'utilisateur (bouton ci-dessus)."); return; }
+    if (uname.trim().toLowerCase() === myUsername.toLowerCase()) { setMsg("C'est ton propre nom 🙂"); return; }
+    const otherId = await resolveUsername(uname);
+    if (!otherId) { setMsg("Utilisateur introuvable. Vérifie le nom exact."); return; }
+    const err = await sendInvite(myId, myUsername, otherId, uname.trim(), cats);
     setMsg(err ? "Erreur : " + err : "Invitation envoyée ✓");
-    if (!err) setEmail("");
+    if (!err) setUname("");
     await load();
   };
 
-  const received = conns.filter((c) => c.status === "pending" && c.requester_id !== myId && (c.addressee_id === myId || c.addressee_email === myEmail));
+  const received = conns.filter((c) => c.status === "pending" && c.addressee_id === myId);
   const sent = conns.filter((c) => c.status === "pending" && c.requester_id === myId);
   const accepted = conns.filter((c) => c.status === "accepted");
-  const otherEmail = (c: Connection) => (c.requester_id === myId ? c.addressee_email : c.requester_email);
+  const otherName = (c: Connection) => (c.requester_id === myId ? c.addressee_username : c.requester_username) ?? "?";
   const otherId = (c: Connection) => (c.requester_id === myId ? c.addressee_id : c.requester_id);
   const theirCats = (c: Connection) => (c.requester_id === myId ? c.addressee_categories : c.requester_categories) as ShareCat[];
 
-  const accept = async (c: Connection) => { await acceptInvite(c.id, myId, [...ALL_CATS]); await load(); };
+  const accept = async (c: Connection) => { await acceptInvite(c.id, [...ALL_CATS]); await load(); };
   const remove = async (c: Connection) => { await removeConnection(c.id); await load(); };
 
   const Av = ({ e }: { e: string }) => <div className={s.av2}>{(e[0] ?? "?").toUpperCase()}</div>;
@@ -1446,12 +1530,18 @@ function PartageScreen({ back }: { back: () => void }) {
     <>
       <div className={`${s.subhead} ${s.r} ${s.r1}`}>
         <button className={s.backbtn} onClick={back} aria-label="Retour"><Icon name="arrowLeft" size={18} /></button>
-        <div><div className={s.hi}>Partage mutuel, par email</div><h2>Partage</h2></div>
+        <div><div className={s.hi}>Partage mutuel, par nom d&apos;utilisateur</div><h2>Partage</h2></div>
+      </div>
+
+      <div className={`${s.connrow} ${s.r} ${s.r2}`}>
+        <Av e={myUsername ?? "?"} />
+        <div className={s.ce}><b>{myUsername ?? "Non défini"}</b><span>Ton nom d&apos;utilisateur</span></div>
+        <div className={s.ca}><button className={`${s.cbtn2} ${s.viewb}`} onClick={() => { setUval(myUsername ?? ""); setMsg(null); setEditU(true); }}>{myUsername ? "Modifier" : "Définir"}</button></div>
       </div>
 
       <div className={`${s.invcard} ${s.r} ${s.r2}`}>
         <div className={s.il}>Inviter un proche</div>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@proche.com" />
+        <input value={uname} onChange={(e) => setUname(e.target.value)} placeholder="nom d'utilisateur" autoCapitalize="none" />
         <div className={s.catrow}>
           {ALL_CATS.map((c) => (
             <span key={c} className={`${s.catchip} ${cats.includes(c) ? s.on : ""}`} onClick={() => toggleCat(c)}>
@@ -1459,7 +1549,7 @@ function PartageScreen({ back }: { back: () => void }) {
             </span>
           ))}
         </div>
-        <button className={s.savebtn} onClick={invite} disabled={!email.trim()}>Envoyer l&apos;invitation</button>
+        <button className={s.savebtn} onClick={invite} disabled={!uname.trim()}>Envoyer l&apos;invitation</button>
         {msg && <div className={s.invmsg}>{msg}</div>}
       </div>
 
@@ -1468,8 +1558,8 @@ function PartageScreen({ back }: { back: () => void }) {
           <div className={s.psect}>Demandes reçues</div>
           {received.map((c) => (
             <div key={c.id} className={s.connrow}>
-              <Av e={c.requester_email} />
-              <div className={s.ce}><b>{c.requester_email}</b><span>veut partager avec toi</span></div>
+              <Av e={c.requester_username ?? "?"} />
+              <div className={s.ce}><b>{c.requester_username}</b><span>veut partager avec toi</span></div>
               <div className={s.ca}>
                 <button className={`${s.cbtn2} ${s.acc}`} onClick={() => accept(c)}>Accepter</button>
                 <button className={`${s.cbtn2} ${s.dec}`} onClick={() => remove(c)}>Refuser</button>
@@ -1484,10 +1574,10 @@ function PartageScreen({ back }: { back: () => void }) {
           <div className={s.psect}>Mes partages</div>
           {accepted.map((c) => (
             <div key={c.id} className={s.connrow}>
-              <Av e={otherEmail(c)} />
-              <div className={s.ce}><b>{otherEmail(c)}</b><span>{theirCats(c).map((x) => SHARE_LABELS[x].split(" ")[0]).join(" · ") || "rien partagé"}</span></div>
+              <Av e={otherName(c)} />
+              <div className={s.ce}><b>{otherName(c)}</b><span>{theirCats(c).map((x) => SHARE_LABELS[x].split(" ")[0]).join(" · ") || "rien partagé"}</span></div>
               <div className={s.ca}>
-                {otherId(c) && <button className={`${s.cbtn2} ${s.viewb}`} onClick={() => setView(c)}>Voir</button>}
+                <button className={`${s.cbtn2} ${s.viewb}`} onClick={() => setView(c)}>Voir</button>
                 <button className={`${s.cbtn2} ${s.dec}`} onClick={() => remove(c)}>✕</button>
               </div>
             </div>
@@ -1500,8 +1590,8 @@ function PartageScreen({ back }: { back: () => void }) {
           <div className={s.psect}>Invitations envoyées</div>
           {sent.map((c) => (
             <div key={c.id} className={s.connrow}>
-              <Av e={c.addressee_email} />
-              <div className={s.ce}><b>{c.addressee_email}</b><span>en attente de validation</span></div>
+              <Av e={c.addressee_username ?? "?"} />
+              <div className={s.ce}><b>{c.addressee_username}</b><span>en attente de validation</span></div>
               <div className={s.ca}><button className={`${s.cbtn2} ${s.dec}`} onClick={() => remove(c)}>Annuler</button></div>
             </div>
           ))}
@@ -1509,15 +1599,27 @@ function PartageScreen({ back }: { back: () => void }) {
       )}
 
       {received.length === 0 && accepted.length === 0 && sent.length === 0 && (
-        <div className={s.pempty}>Aucun partage pour l&apos;instant. Invite un proche par email ci-dessus — il devra accepter pour que vous voyiez vos données mutuellement.</div>
+        <div className={s.pempty}>Aucun partage pour l&apos;instant. Invite un proche par son nom d&apos;utilisateur — il devra accepter pour que vous voyiez vos données mutuellement.</div>
       )}
 
-      {view && otherId(view) && <SharedDataModal otherId={otherId(view)!} otherEmail={otherEmail(view)} cats={theirCats(view)} onClose={() => setView(null)} />}
+      {editU && (
+        <div className={s.modalwrap} onClick={() => setEditU(false)}>
+          <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
+            <h3>Ton nom d&apos;utilisateur <span className={s.x} onClick={() => setEditU(false)}>✕</span></h3>
+            <label>Choisis un identifiant unique (ce que tes proches saisiront)</label>
+            <input className={s.inp} value={uval} onChange={(e) => setUval(e.target.value)} placeholder="ex : seb_afonso" autoCapitalize="none" autoFocus />
+            <button className={s.savebtn} onClick={saveUsername} disabled={!uval.trim()}>Enregistrer</button>
+            {msg && <div className={s.invmsg} style={{ color: "var(--coral)" }}>{msg}</div>}
+          </div>
+        </div>
+      )}
+
+      {view && <SharedDataModal otherId={otherId(view)} otherName={otherName(view)} cats={theirCats(view)} onClose={() => setView(null)} />}
     </>
   );
 }
 
-function SharedDataModal({ otherId, otherEmail, cats, onClose }: { otherId: string; otherEmail: string; cats: ShareCat[]; onClose: () => void }) {
+function SharedDataModal({ otherId, otherName, cats, onClose }: { otherId: string; otherName: string; cats: ShareCat[]; onClose: () => void }) {
   const [data, setData] = useState<SharedData | null>(null);
   useEffect(() => { loadSharedData(otherId).then(setData); }, [otherId]);
   const lastW = data && data.weights.length ? data.weights[data.weights.length - 1].weight_kg : null;
@@ -1530,8 +1632,8 @@ function SharedDataModal({ otherId, otherEmail, cats, onClose }: { otherId: stri
       <div className={`${s.sheet} ${s.rsheet}`} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "flex-end" }}><span className={s.x} onClick={onClose}>✕</span></div>
         <div className={s.sdhead}>
-          <div className={s.av2}>{(otherEmail[0] ?? "?").toUpperCase()}</div>
-          <div><b>{otherEmail}</b><div className={s.sl}>Données partagées avec toi</div></div>
+          <div className={s.av2}>{(otherName[0] ?? "?").toUpperCase()}</div>
+          <div><b>{otherName}</b><div className={s.sl}>Données partagées avec toi</div></div>
         </div>
         {!data ? (
           <div className={s.explload}><div className={s.gsp} />Chargement…</div>

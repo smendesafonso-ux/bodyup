@@ -9,12 +9,25 @@ export const ALL_CATS: ShareCat[] = ["poids", "pas", "courses"];
 export interface Connection {
   id: string;
   requester_id: string;
-  requester_email: string;
-  addressee_email: string;
-  addressee_id: string | null;
+  requester_username: string | null;
+  addressee_id: string;
+  addressee_username: string | null;
   status: "pending" | "accepted";
   requester_categories: string[];
   addressee_categories: string[];
+}
+
+/** Définit / met à jour son nom d'utilisateur. */
+export async function setUsername(userId: string, username: string): Promise<string | null> {
+  const { error } = await supabase.from("profiles").update({ username: username.trim() }).eq("id", userId);
+  if (error) return /duplicate|unique/i.test(error.message) ? "Ce nom d'utilisateur est déjà pris." : error.message;
+  return null;
+}
+
+/** Résout un nom d'utilisateur en id (via fonction SECURITY DEFINER). */
+export async function resolveUsername(uname: string): Promise<string | null> {
+  const { data } = await supabase.rpc("find_user_by_username", { uname });
+  return (data as string) ?? null;
 }
 
 export async function loadConnections(): Promise<Connection[]> {
@@ -22,16 +35,17 @@ export async function loadConnections(): Promise<Connection[]> {
   return (data as Connection[]) ?? [];
 }
 
-export async function sendInvite(requesterId: string, requesterEmail: string, addresseeEmail: string, categories: ShareCat[]): Promise<string | null> {
+export async function sendInvite(requesterId: string, requesterUsername: string, addresseeId: string, addresseeUsername: string, categories: ShareCat[]): Promise<string | null> {
   const { error } = await supabase.from("connections").insert({
-    requester_id: requesterId, requester_email: requesterEmail.toLowerCase(),
-    addressee_email: addresseeEmail.trim().toLowerCase(), requester_categories: categories,
+    requester_id: requesterId, requester_username: requesterUsername,
+    addressee_id: addresseeId, addressee_username: addresseeUsername, requester_categories: categories,
   });
-  return error ? error.message : null;
+  if (error) return /duplicate|unique/i.test(error.message) ? "Tu as déjà un partage avec cette personne." : error.message;
+  return null;
 }
 
-export async function acceptInvite(id: string, addresseeId: string, categories: ShareCat[]): Promise<void> {
-  await supabase.from("connections").update({ status: "accepted", addressee_id: addresseeId, addressee_categories: categories, updated_at: new Date().toISOString() }).eq("id", id);
+export async function acceptInvite(id: string, categories: ShareCat[]): Promise<void> {
+  await supabase.from("connections").update({ status: "accepted", addressee_categories: categories, updated_at: new Date().toISOString() }).eq("id", id);
 }
 
 export async function removeConnection(id: string): Promise<void> {

@@ -5,7 +5,7 @@ export type IconName =
   | "flame" | "steps" | "trend" | "clock" | "send" | "play" | "cart" | "plus"
   | "refresh" | "barcode" | "mic" | "heart" | "fit" | "bell" | "info" | "shield"
   | "arrowRight" | "arrowLeft" | "calendar" | "moon" | "diamond" | "target"
-  | "arrowUp" | "bolt" | "dashboard" | "settings" | "signal" | "tablet" | "warning" | "flameLine";
+  | "arrowUp" | "bolt" | "dashboard" | "settings" | "signal" | "tablet" | "warning" | "flameLine" | "users";
 
 interface Props { name: IconName; size?: number; className?: string; style?: CSSProperties }
 
@@ -56,6 +56,7 @@ export function Icon({ name, size = 24, className, style }: Props) {
     case "signal": return <svg {...s}><path d="M12 3v18M5 10l7-7 7 7" /></svg>;
     case "tablet": return <svg {...s}><rect x="3" y="4" width="18" height="14" rx="2" /><path d="M8 21h8" /></svg>;
     case "warning": return <svg {...s}><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>;
+    case "users": return <svg {...s}><circle cx="9" cy="8" r="3.2" /><path d="M3.5 20a5.5 5.5 0 0111 0" /><path d="M16 5.2a3 3 0 010 5.6M20.5 20a5.5 5.5 0 00-4-5.3" /></svg>;
     default: return null;
   }
 }
