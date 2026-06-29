@@ -407,12 +407,13 @@ function ScanScreen({ day }: { day: Day }) {
   const [bc, setBc] = useState<FoodHit | null>(null);
   const [code, setCode] = useState("");
   const [grams, setGrams] = useState("100");
+  const [scanning, setScanning] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const modes: { icon: IconName; label: string }[] = [
     { icon: "camera", label: "Photo" }, { icon: "barcode", label: "Code-barres" }, { icon: "mic", label: "Vocal" },
   ];
 
-  const reset = () => { setPhoto(null); setBc(null); setErr(null); setCode(""); setGrams("100"); };
+  const reset = () => { setPhoto(null); setBc(null); setErr(null); setCode(""); setGrams("100"); setScanning(false); };
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -429,10 +430,11 @@ function ScanScreen({ day }: { day: Day }) {
     }
   };
 
-  const onBarcode = async () => {
-    if (code.trim().length < 6) return;
+  const runBarcode = async (value?: string) => {
+    const c = (value ?? code).trim();
+    if (c.length < 6) return;
     setBusy(true); setErr(null); setBc(null);
-    const hit = await lookupBarcode(code.trim());
+    const hit = await lookupBarcode(c);
     setBusy(false);
     if (hit) { setBc(hit); setGrams("100"); }
     else setErr("Produit introuvable sur Open Food Facts. Essaie la photo ou la saisie manuelle.");
@@ -485,10 +487,23 @@ function ScanScreen({ day }: { day: Day }) {
 
       {mode === 1 && (
         <div className={`${s.r} ${s.r3}`}>
-          <div className={s.bcform}>
-            <input inputMode="numeric" placeholder="Saisis le code-barres" value={code} onChange={(e) => setCode(e.target.value)} />
-            <button onClick={onBarcode} disabled={busy}>{busy ? "…" : "Chercher"}</button>
-          </div>
+          {scanning ? (
+            <BarcodeScanner
+              onDetected={(v) => { setScanning(false); setCode(v); runBarcode(v); }}
+              onClose={() => setScanning(false)}
+              onUnsupported={() => { setScanning(false); setErr("Le scan caméra n'est pas disponible sur ce navigateur (souvent le cas sur iPhone/Safari). Saisis le numéro du code-barres à la main."); }}
+            />
+          ) : (
+            <>
+              <div className={s.bcform}>
+                <input inputMode="numeric" placeholder="Saisis le code-barres" value={code} onChange={(e) => setCode(e.target.value)} />
+                <button onClick={() => runBarcode()} disabled={busy}>{busy ? "…" : "Chercher"}</button>
+              </div>
+              <button className={s.scanbcbtn} onClick={() => { setErr(null); setScanning(true); }}>
+                <Icon name="camera" size={18} /> Scanner avec la caméra
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -607,6 +622,52 @@ function RepasScreen({ day, go }: { day: Day; go: (t: Tab) => void }) {
         </div>
       ))}
     </>
+  );
+}
+
+/* ---------------- Scanner code-barres (caméra) ---------------- */
+function BarcodeScanner({ onDetected, onClose, onUnsupported }: { onDetected: (v: string) => void; onClose: () => void; onUnsupported: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    let stream: MediaStream | null = null;
+    let raf = 0;
+    let stopped = false;
+    // BarcodeDetector n'est pas typé dans la lib standard
+    const Detector = (window as unknown as { BarcodeDetector?: new (o: { formats: string[] }) => { detect: (s: CanvasImageSource) => Promise<{ rawValue: string }[]> } }).BarcodeDetector;
+    if (!Detector || !navigator.mediaDevices?.getUserMedia) { onUnsupported(); return; }
+    const detector = new Detector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"] });
+
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        if (stopped) { stream.getTracks().forEach((t) => t.stop()); return; }
+        const v = videoRef.current;
+        if (v) { v.srcObject = stream; await v.play(); }
+        const tick = async () => {
+          if (stopped || !videoRef.current) return;
+          try {
+            const codes = await detector.detect(videoRef.current);
+            if (codes && codes.length && codes[0].rawValue) { onDetected(codes[0].rawValue); return; }
+          } catch { /* ignore une frame illisible */ }
+          raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+      } catch { onUnsupported(); }
+    })();
+
+    return () => { stopped = true; cancelAnimationFrame(raf); if (stream) stream.getTracks().forEach((t) => t.stop()); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className={s.bcam}>
+      <video ref={videoRef} playsInline muted />
+      <div className={s.bframe} />
+      <div className={s.bline} />
+      <button className={s.bclose} onClick={onClose} aria-label="Fermer">✕</button>
+      <div className={s.bhint}>Vise le code-barres du produit</div>
+    </div>
   );
 }
 

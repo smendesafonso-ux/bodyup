@@ -42,7 +42,15 @@ export async function analyzeFoodPhoto(file: File): Promise<FoodAnalysis> {
   const { data, error } = await supabase.functions.invoke("analyze-food", {
     body: { image: img, mediaType: "image/jpeg" },
   });
-  if (error) throw new Error(error.message || "Analyse impossible");
+  if (error) {
+    // functions.invoke masque le corps : on l'extrait pour voir la vraie cause
+    let detail = error.message || "Analyse impossible";
+    try {
+      const body = await (error as { context?: Response }).context?.json();
+      if (body?.error) detail = body.detail ? `${body.error} — ${String(body.detail).slice(0, 200)}` : body.error;
+    } catch { /* garde le message générique */ }
+    throw new Error(detail);
+  }
   if (data?.error) throw new Error(data.error);
   return data as FoodAnalysis;
 }
