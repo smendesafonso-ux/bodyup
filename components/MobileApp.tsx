@@ -8,9 +8,10 @@ import { CalorieRing } from "./CalorieRing";
 import { fr } from "@/lib/nutrition";
 import {
   journalMeals, workouts, recipes, coachThread, coachChips, badges,
+  shoppingList, progressTimeline,
 } from "@/lib/data";
 
-type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil";
+type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil" | "courses" | "progress";
 
 const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: "home", label: "Accueil", icon: "home" },
@@ -53,12 +54,14 @@ export default function MobileApp() {
             <div className={s.page} key={tab}>
               {tab === "home" && <HomeScreen onAvatar={() => setTab("profil")} />}
               {tab === "journal" && <JournalScreen />}
-              {tab === "repas" && <RepasScreen />}
+              {tab === "repas" && <RepasScreen go={setTab} />}
               {tab === "scan" && <ScanScreen />}
               {tab === "exo" && <ExoScreen />}
               {tab === "coach" && <CoachScreen />}
-              {tab === "stats" && <StatsScreen />}
+              {tab === "stats" && <StatsScreen go={setTab} />}
               {tab === "profil" && <ProfilScreen />}
+              {tab === "courses" && <CoursesScreen back={() => setTab("repas")} />}
+              {tab === "progress" && <ProgressScreen back={() => setTab("stats")} />}
             </div>
           </div>
 
@@ -278,13 +281,18 @@ function ExoScreen() {
 }
 
 /* ---------------- REPAS IA ---------------- */
-function RepasScreen() {
+function RepasScreen({ go }: { go: (t: Tab) => void }) {
   const [meal, setMeal] = useState(0);
   const tabs = ["Dîner", "Petit-déj", "Déjeuner", "Collation"];
   const delay = [s.r3, s.r4];
   return (
     <>
-      <div className={`${s.phead} ${s.r} ${s.r1}`}><div><div className={s.hi}>Adapté à tes 600 kcal restantes</div><h2>Repas IA</h2></div></div>
+      <div className={`${s.phead} ${s.r} ${s.r1}`}>
+        <div><div className={s.hi}>Adapté à tes 600 kcal restantes</div><h2>Repas IA</h2></div>
+        <button className={s.headact} onClick={() => go("courses")} aria-label="Liste de courses">
+          <Icon name="cart" /><span className={s.cnt}>13</span>
+        </button>
+      </div>
       <div className={`${s.mealtabs} ${s.r} ${s.r2}`}>
         {tabs.map((t, i) => <div key={t} className={`${s.mtab} ${meal === i ? s.on : ""}`} onClick={() => setMeal(i)}>{t}</div>)}
       </div>
@@ -308,7 +316,7 @@ function RepasScreen() {
             </div>
             <div className={s.acts}>
               <button className={s.add}><Icon name="plus" size={15} />Au journal</button>
-              <button className={s.cartbtn}><Icon name="cart" size={16} /></button>
+              <button className={s.cartbtn} onClick={() => go("courses")} aria-label="Ajouter aux courses"><Icon name="cart" size={16} /></button>
             </div>
           </div>
         </div>
@@ -344,12 +352,15 @@ function CoachScreen() {
 }
 
 /* ---------------- STATS ---------------- */
-function StatsScreen() {
+function StatsScreen({ go }: { go: (t: Tab) => void }) {
   const week = [55, 70, 48, 85, 30, 92, 78];
   const labels = ["L", "M", "M", "J", "V", "S", "D"];
   return (
     <>
-      <div className={`${s.phead} ${s.r} ${s.r1}`}><div><div className={s.hi}>7 derniers jours</div><h2>Statistiques</h2></div></div>
+      <div className={`${s.phead} ${s.r} ${s.r1}`}>
+        <div><div className={s.hi}>7 derniers jours</div><h2>Statistiques</h2></div>
+        <button className={s.headact} onClick={() => go("progress")} aria-label="Photos de progression"><Icon name="camera" /></button>
+      </div>
       <div className={`${s.kpibig} ${s.r} ${s.r2}`}>
         <div className={s.l}>Poids perdu depuis le début</div>
         <div className={s.v}>−3.4 <small>kg en 6 sem.</small></div>
@@ -415,5 +426,103 @@ function ProfRow({ icon, label, val, chevron }: { icon: IconName; label: string;
       {val && <span className={s.val}>{val}</span>}
       {chevron && <span className={s.ch}>›</span>}
     </div>
+  );
+}
+
+/* ---------------- LISTE DE COURSES ---------------- */
+function CoursesScreen({ back }: { back: () => void }) {
+  const initial = new Set<string>();
+  shoppingList.forEach((a) => a.items.forEach((it) => { if (it.checked) initial.add(`${a.rayon}-${it.name}`); }));
+  const [checked, setChecked] = useState<Set<string>>(initial);
+
+  const total = shoppingList.reduce((n, a) => n + a.items.length, 0);
+  const toggle = (key: string) =>
+    setChecked((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
+
+  const delay = [s.r2, s.r3, s.r4, s.r5];
+  return (
+    <>
+      <div className={`${s.subhead} ${s.r} ${s.r1}`}>
+        <button className={s.backbtn} onClick={back} aria-label="Retour"><Icon name="arrowLeft" size={18} /></button>
+        <div><div className={s.hi}>Générée depuis tes repas planifiés</div><h2>Liste de courses</h2></div>
+      </div>
+
+      <div className={`${s.famsync} ${s.r} ${s.r1}`}>
+        <Icon name="fit" size={18} />
+        <span><b>Synchronisation familiale</b> active · 2 membres voient cette liste en temps réel.</span>
+      </div>
+
+      {shoppingList.map((a, i) => (
+        <div key={a.rayon} className={`${s.rayon} ${s.r} ${delay[i]}`}>
+          <div className={s.rayonh}><span className={s.em}>{a.emoji}</span>{a.rayon}<span className={s.ct}>{a.items.length} articles</span></div>
+          <div className={s.slist}>
+            {a.items.map((it) => {
+              const key = `${a.rayon}-${it.name}`;
+              const done = checked.has(key);
+              return (
+                <div key={it.name} className={`${s.sitem} ${done ? s.done : ""}`} onClick={() => toggle(key)}>
+                  <span className={s.cbox}><Icon name="check" size={13} /></span>
+                  <span className={s.snm}>{it.name}</span>
+                  <span className={s.sqty}>{it.qty}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      <div className={s.sfoot}>
+        <div className={s.sprog}>
+          <div className={s.bar}><i style={{ width: `${(checked.size / total) * 100}%` }} /></div>
+          <span>{checked.size} / {total} articles cochés</span>
+        </div>
+        <button className={s.share} aria-label="Partager la liste"><Icon name="send" size={20} /></button>
+      </div>
+    </>
+  );
+}
+
+/* ---------------- PHOTOS DE PROGRESSION ---------------- */
+function ProgressScreen({ back }: { back: () => void }) {
+  const first = progressTimeline[0];
+  const last = progressTimeline[progressTimeline.length - 1];
+  const lost = (first.weight - last.weight).toFixed(1);
+  return (
+    <>
+      <div className={`${s.subhead} ${s.r} ${s.r1}`}>
+        <button className={s.backbtn} onClick={back} aria-label="Retour"><Icon name="arrowLeft" size={18} /></button>
+        <div><div className={s.hi}>Avant / après · 5 mois</div><h2>Progression</h2></div>
+        <button className={s.headact} aria-label="Ajouter une photo"><Icon name="camera" /></button>
+      </div>
+
+      <div className={`${s.compare} ${s.r} ${s.r2}`}>
+        <div className={`${s.cphoto} ${s.before}`}>🧍
+          <span className={s.ctag}>AVANT</span>
+          <div className={s.cw}><b>{first.weight} kg</b><span>{first.month} 2026</span></div>
+        </div>
+        <div className={`${s.cphoto} ${s.after}`}>🧍
+          <span className={s.ctag}>APRÈS</span>
+          <div className={s.cw}><b>{last.weight} kg</b><span>{last.month} 2026</span></div>
+        </div>
+      </div>
+
+      <div className={`${s.cresult} ${s.r} ${s.r3}`}>
+        <div className={s.big}>−{lost}<small> kg</small></div>
+        <div className={s.cr}>Tu as perdu <b>{lost} kg</b> en 5 mois.<br />Plus que {(last.weight - 74).toFixed(1)} kg avant ta cible.</div>
+      </div>
+
+      <div className={`${s.sectionH} ${s.r} ${s.r4}`}><h3>Évolution mensuelle</h3><a>Mensuel</a></div>
+      <div className={`${s.timeline} ${s.r} ${s.r4}`}>
+        {progressTimeline.map((p, i) => (
+          <div key={p.month} className={`${s.tnode} ${i === progressTimeline.length - 1 ? s.last : ""}`}>
+            <div className={s.tph}>{p.emoji}</div>
+            <div className={s.tm}>{p.month}</div>
+            <div className={s.tw}>{p.weight} kg</div>
+          </div>
+        ))}
+      </div>
+
+      <button className={`${s.addphoto} ${s.r} ${s.r5}`}><Icon name="plus" size={16} /> Ajouter une photo ce mois-ci</button>
+    </>
   );
 }

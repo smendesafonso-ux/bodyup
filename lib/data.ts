@@ -107,6 +107,38 @@ export const insights: Insight[] = [
   { variant: "k", icon: "bolt", html: "Bonne nouvelle : ton <b>hydratation est en hausse</b> de 22% cette semaine. Continue." },
 ];
 
+// ---- Liste de courses intelligente ----
+export interface ShopItem { name: string; qty: string; checked?: boolean }
+export interface ShopAisle { rayon: string; emoji: string; items: ShopItem[] }
+
+export const shoppingList: ShopAisle[] = [
+  { rayon: "Fruits & légumes", emoji: "🥬", items: [
+    { name: "Avocat", qty: "×2" }, { name: "Épinards frais", qty: "200 g", checked: true },
+    { name: "Banane", qty: "×6" }, { name: "Citron", qty: "×2" },
+  ]},
+  { rayon: "Protéines", emoji: "🐟", items: [
+    { name: "Filet de saumon", qty: "300 g" }, { name: "Blanc de poulet", qty: "500 g" },
+    { name: "Pois chiches", qty: "1 boîte", checked: true }, { name: "Œufs", qty: "×12" },
+  ]},
+  { rayon: "Épicerie", emoji: "🌾", items: [
+    { name: "Riz complet", qty: "1 kg" }, { name: "Huile d'olive", qty: "1 bouteille", checked: true },
+    { name: "Tortillas", qty: "×8" },
+  ]},
+  { rayon: "Produits laitiers", emoji: "🥛", items: [
+    { name: "Yaourt grec", qty: "500 g" }, { name: "Skyr nature", qty: "×4" },
+  ]},
+];
+
+// ---- Photos de progression ----
+export interface ProgressPoint { month: string; weight: number; emoji: string }
+export const progressTimeline: ProgressPoint[] = [
+  { month: "Fév", weight: 82.0, emoji: "🧍" },
+  { month: "Mar", weight: 81.1, emoji: "🧍" },
+  { month: "Avr", weight: 80.2, emoji: "🧍" },
+  { month: "Mai", weight: 79.4, emoji: "🧍" },
+  { month: "Juin", weight: 78.6, emoji: "🧍" },
+];
+
 export const mealSuggestions = [
   { emoji: "🐟", bg: "linear-gradient(140deg,rgba(201,255,60,.18),rgba(91,209,255,.1))", title: "Saumon & légumes verts", time: "25 min", kcal: 540 },
   { emoji: "🥙", bg: "linear-gradient(140deg,rgba(255,194,75,.18),rgba(255,122,83,.1))", title: "Wrap poulet avocat", time: "15 min", kcal: 480 },

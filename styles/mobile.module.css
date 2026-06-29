@@ -242,6 +242,68 @@
 .synccard span{font-size:11px;color:var(--lime);display:flex;align-items:center;justify-content:center;gap:4px;margin-top:3px}
 .synccard span svg{width:11px;height:11px;margin:0}
 
+/* ---------- sub-screen header (back) ---------- */
+.subhead{display:flex;align-items:center;gap:13px;padding:8px 4px 18px}
+.backbtn{width:42px;height:42px;border-radius:14px;background:var(--card);border:1px solid var(--card-bd);display:grid;place-items:center;flex:0 0 auto;cursor:pointer;color:var(--txt)}
+.backbtn svg{width:18px;height:18px}
+.subhead .hi{font-size:14px;color:var(--txt-2);font-weight:500}
+.subhead h2{font-family:var(--display);font-weight:600;font-size:24px;letter-spacing:-.02em;margin-top:2px}
+.headact{margin-left:auto;width:42px;height:42px;border-radius:14px;background:var(--card);border:1px solid var(--card-bd);display:grid;place-items:center;cursor:pointer;color:var(--txt);position:relative}
+.headact svg{width:19px;height:19px}
+.headact .cnt{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;padding:0 5px;border-radius:100px;background:var(--lime);color:#0a1400;font-size:11px;font-weight:700;display:grid;place-items:center}
+
+/* ---------- liste de courses ---------- */
+.rayon{margin-bottom:16px}
+.rayonh{display:flex;align-items:center;gap:9px;margin:0 4px 11px;font-family:var(--display);font-weight:600;font-size:15px}
+.rayonh .em{font-size:17px}
+.rayonh .ct{margin-left:auto;font-size:12px;color:var(--txt-3);font-family:var(--body);font-weight:500}
+.slist{background:var(--card);border:1px solid var(--hair);border-radius:20px;overflow:hidden}
+.sitem{display:flex;align-items:center;gap:13px;padding:14px 16px;border-bottom:1px solid var(--hair);cursor:pointer;transition:.15s}
+.sitem:last-child{border-bottom:none}
+.cbox{width:24px;height:24px;border-radius:8px;border:2px solid var(--card-bd);flex:0 0 auto;display:grid;place-items:center;transition:.15s}
+.cbox svg{width:13px;height:13px;stroke:#0a1400;opacity:0}
+.sitem.done .cbox{background:var(--lime);border-color:var(--lime)}
+.sitem.done .cbox svg{opacity:1}
+.sitem .snm{flex:1;font-size:14.5px;font-weight:500;transition:.15s}
+.sitem.done .snm{color:var(--txt-3);text-decoration:line-through}
+.sitem .sqty{font-size:13px;color:var(--txt-2)}
+.sfoot{position:sticky;bottom:0;margin-top:8px;display:flex;align-items:center;gap:12px;background:rgba(7,10,8,.7);backdrop-filter:blur(8px);padding:6px 2px}
+.sprog{flex:1}
+.sprog .bar{height:7px;border-radius:100px;background:rgba(255,255,255,.08);overflow:hidden;margin-bottom:6px}
+.sprog .bar i{display:block;height:100%;border-radius:100px;background:linear-gradient(90deg,var(--lime-deep),var(--lime));transition:width .3s}
+.sprog span{font-size:12px;color:var(--txt-2)}
+.share{width:48px;height:48px;border-radius:15px;background:var(--lime);border:none;display:grid;place-items:center;flex:0 0 auto;cursor:pointer;color:#0a1400}
+.share svg{width:20px;height:20px}
+.famsync{display:flex;align-items:center;gap:10px;background:linear-gradient(120deg,rgba(91,209,255,.08),rgba(255,255,255,.02));border:1px solid rgba(91,209,255,.18);border-radius:18px;padding:13px 15px;margin-bottom:16px;font-size:12.5px;color:var(--txt-2)}
+.famsync svg{width:18px;height:18px;color:var(--sky);flex:0 0 auto}
+.famsync b{color:var(--txt);font-weight:600}
+
+/* ---------- photos de progression ---------- */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:14px}
+.cphoto{position:relative;border-radius:22px;overflow:hidden;border:1px solid var(--card-bd);aspect-ratio:3/4;display:grid;place-items:center;font-size:70px}
+.cphoto.before{background:linear-gradient(165deg,#2a2420,#15110e)}
+.cphoto.after{background:linear-gradient(165deg,rgba(201,255,60,.14),#15170e)}
+.cphoto .ctag{position:absolute;top:11px;left:11px;font-size:11px;font-weight:700;padding:4px 10px;border-radius:100px;background:rgba(7,10,8,.7);backdrop-filter:blur(6px);border:1px solid var(--card-bd)}
+.cphoto.after .ctag{color:var(--lime)}
+.cphoto .cw{position:absolute;bottom:11px;left:11px;right:11px;display:flex;justify-content:space-between;align-items:baseline}
+.cphoto .cw b{font-family:var(--display);font-weight:600;font-size:20px}
+.cphoto .cw span{font-size:11px;color:var(--txt-2)}
+.cresult{display:flex;align-items:center;gap:14px;background:linear-gradient(120deg,rgba(201,255,60,.1),rgba(255,255,255,.02));border:1px solid rgba(201,255,60,.22);border-radius:22px;padding:17px;margin-bottom:22px}
+.cresult .big{font-family:var(--display);font-weight:600;font-size:34px;letter-spacing:-.02em;color:var(--lime)}
+.cresult .big small{font-size:14px;color:var(--txt-2);font-weight:500;font-family:var(--body)}
+.cresult .cr{font-size:13px;color:var(--txt-2);line-height:1.4}
+.cresult .cr b{color:var(--txt)}
+.timeline{display:flex;gap:11px;overflow-x:auto;scrollbar-width:none;padding-bottom:6px}
+.timeline::-webkit-scrollbar{display:none}
+.tnode{flex:0 0 86px;text-align:center}
+.tnode .tph{height:108px;border-radius:16px;border:1px solid var(--hair);background:linear-gradient(165deg,#222a1c,#13160f);display:grid;place-items:center;font-size:34px;margin-bottom:8px;position:relative}
+.tnode.last .tph{border-color:rgba(201,255,60,.4);background:linear-gradient(165deg,rgba(201,255,60,.12),#13160f)}
+.tnode .tm{font-size:13px;font-weight:600}
+.tnode .tw{font-size:11.5px;color:var(--txt-2)}
+.tnode.last .tw{color:var(--lime)}
+.addphoto{width:100%;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;padding:14px;border:1.5px dashed var(--card-bd);border-radius:16px;color:var(--txt-2);background:none;font-family:var(--body);font-weight:600;font-size:14px;cursor:pointer}
+.addphoto svg{width:16px;height:16px}
+
 /* ---------- bottom nav ---------- */
 .tabbar{position:absolute;left:0;right:0;bottom:0;z-index:30;padding:10px 14px calc(14px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(7,10,8,0),rgba(7,10,8,.92) 32%)}
 .tabinner{display:flex;align-items:center;justify-content:space-between;background:rgba(18,23,15,.85);backdrop-filter:blur(18px);border:1px solid var(--card-bd);border-radius:26px;padding:8px 9px;position:relative}
