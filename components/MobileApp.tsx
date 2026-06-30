@@ -20,7 +20,7 @@ import { loadPantry, addPantryItem, addManyToBuy, setPantryStatus, removePantryI
 import { mealCategories, mealsByCategory, mealLookup, type MealLite, type MealFull } from "@/lib/themealdb";
 import { loadConnections, sendInvite, acceptInvite, removeConnection, loadSharedData, resolveUsername, setUsername, SHARE_LABELS, ALL_CATS, type Connection, type ShareCat, type SharedData } from "@/lib/social";
 import { loadStats, computePoints, levelFor, emojiForLevel, persistGamification, BADGES, type Stats } from "@/lib/gamification";
-import { recipes as libRecipes, aiPhoto, shuffleSeeded, type LibRecipe } from "@/lib/recipes";
+import { recipes as libRecipes, aiPhoto, shuffleSeeded, ytId, type LibRecipe } from "@/lib/recipes";
 
 type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil" | "courses" | "progress" | "partage";
 type Day = ReturnType<typeof useDay>;
@@ -1088,8 +1088,12 @@ function Library({ day, pantry, userId, go }: { day: Day; pantry: string[]; user
   const [sel, setSel] = useState<LibRecipe | null>(null);
   // Rotation : l'ordre est mélangé à chaque visite (seed aléatoire) et au clic sur « Autres ».
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e9));
+  // Recettes FR traduites (TheMealDB, avec photos + vidéos), chargées à la volée.
+  const [extra, setExtra] = useState<LibRecipe[]>([]);
+  useEffect(() => { import("@/lib/recipes-fr.json").then((m) => setExtra((m.default as unknown as LibRecipe[]) ?? [])).catch(() => {}); }, []);
   const filters: [string, string][] = [["all", "Tous"], ["petit-dej", "Petit-déj"], ["dejeuner", "Déjeuner"], ["diner", "Dîner"], ["collation", "Collation"]];
-  const list = useMemo(() => shuffleSeeded(libRecipes.filter((r) => meal === "all" || r.meal === meal), seed), [meal, seed]);
+  const all = useMemo(() => [...libRecipes, ...extra], [extra]);
+  const list = useMemo(() => shuffleSeeded(all.filter((r) => meal === "all" || r.meal === meal), seed), [all, meal, seed]);
   return (
     <>
       <div className={`${s.exfrow} ${s.r} ${s.r3}`}>
@@ -1121,7 +1125,9 @@ function LibRecipeModal({ recipe, pantry, userId, day, go, onClose }: { recipe: 
     <div className={s.modalwrap} onClick={onClose}>
       <div className={`${s.sheet} ${s.rsheet}`} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "flex-end" }}><span className={s.x} onClick={onClose}>✕</span></div>
-        <img className={s.mphoto} src={recipe.photo} alt={recipe.name} />
+        {recipe.video && ytId(recipe.video)
+          ? <div className={s.vidwrap}><iframe className={s.vid} src={`https://www.youtube-nocookie.com/embed/${ytId(recipe.video)}`} title={recipe.name} loading="lazy" referrerPolicy="strict-origin-when-cross-origin" allow="encrypted-media; fullscreen" allowFullScreen /></div>
+          : <img className={s.mphoto} src={recipe.photo} alt={recipe.name} />}
         <h3 style={{ fontFamily: "var(--display)", fontWeight: 600, fontSize: 20, marginBottom: 9 }}>{recipe.emoji} {recipe.name}</h3>
         <div className={s.mmeta}><span>{recipe.time} min</span><span>{recipe.kcal} kcal</span><span>{recipe.tag}</span></div>
         <div className={s.nrow}>

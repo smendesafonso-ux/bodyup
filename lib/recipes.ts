@@ -25,6 +25,7 @@ export interface LibRecipe {
   name: string;
   emoji: string;
   photo: string;
+  video?: string;
   meal: MealKey;
   time: number;
   kcal: number; protein: number; carbs: number; fat: number;
@@ -32,6 +33,12 @@ export interface LibRecipe {
   ingredients: string[];
   steps: string[];
 }
+
+/** Extrait l'ID YouTube (11 car.) d'une URL pour l'intégration vidéo. */
+export const ytId = (url: string) => {
+  const m = url.match(/[?&]v=([\w-]{11})/) || url.match(/youtu\.be\/([\w-]{11})/) || url.match(/embed\/([\w-]{11})/);
+  return m ? m[1] : "";
+};
 
 // Vraies photos de plats (vignettes TheMealDB, CDN gratuit & stable), mappées par recette.
 const PHOTOS: Record<string, string> = {
