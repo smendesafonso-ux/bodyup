@@ -33,8 +33,62 @@ export interface LibRecipe {
   steps: string[];
 }
 
+// Vraies photos de plats (vignettes TheMealDB, CDN gratuit & stable), mappées par recette.
+const PHOTOS: Record<string, string> = {
+  "porridge": "https://www.themealdb.com/images/media/meals/sng9bm1765320170.jpg",
+  "oeufs-avocat": "https://www.themealdb.com/images/media/meals/1549542994.jpg",
+  "pancakes": "https://www.themealdb.com/images/media/meals/xlqqhw1764369924.jpg",
+  "yaourt-bowl": "https://www.themealdb.com/images/media/meals/y2irzl1585563479.jpg",
+  "toast-saumon": "https://www.themealdb.com/images/media/meals/ikizdm1763760862.jpg",
+  "poulet-riz": "https://www.themealdb.com/images/media/meals/4hzyvq1763792564.jpg",
+  "buddha-quinoa": "https://www.themealdb.com/images/media/meals/ssyqwr1511451678.jpg",
+  "wrap-poulet": "https://www.themealdb.com/images/media/meals/prrirc1763781360.jpg",
+  "saumon-roti": "https://www.themealdb.com/images/media/meals/ikizdm1763760862.jpg",
+  "cesar": "https://www.themealdb.com/images/media/meals/li30ck1763281992.jpg",
+  "bolo": "https://www.themealdb.com/images/media/meals/sutysw1468247559.jpg",
+  "curry-pois": "https://www.themealdb.com/images/media/meals/yqwtvu1487426027.jpg",
+  "omelette": "https://www.themealdb.com/images/media/meals/yvpuuy1511797244.jpg",
+  "soupe-lentilles": "https://www.themealdb.com/images/media/meals/xxtsvx1511814083.jpg",
+  "cabillaud": "https://www.themealdb.com/images/media/meals/7vpsfp1608588991.jpg",
+  "steak-haricots": "https://www.themealdb.com/images/media/meals/vussxq1511882648.jpg",
+  "tofu-wok": "https://www.themealdb.com/images/media/meals/1525874812.jpg",
+  "pizza": "https://www.themealdb.com/images/media/meals/x0lk931587671540.jpg",
+  "crevettes": "https://www.themealdb.com/images/media/meals/u2lhqb1763331899.jpg",
+  "skyr": "https://www.themealdb.com/images/media/meals/yqwtvu1487426027.jpg",
+  "smoothie": "https://www.themealdb.com/images/media/meals/xvsurr1511719182.jpg",
+  "pomme-pb": "https://www.themealdb.com/images/media/meals/wxywrq1468235067.jpg",
+  "houmous": "https://www.themealdb.com/images/media/meals/gpon5u1763801180.jpg",
+  "barre": "https://www.themealdb.com/images/media/meals/vvusxs1483907034.jpg",
+  "smoothie-bowl": "https://www.themealdb.com/images/media/meals/bfok4w1780242078.jpg",
+  "pain-perdu": "https://www.themealdb.com/images/media/meals/iydbwy1763816111.jpg",
+  "oeuf-haricots": "https://www.themealdb.com/images/media/meals/21yc5s1760524759.jpg",
+  "chia-coco": "https://www.themealdb.com/images/media/meals/xqrwyr1511133646.jpg",
+  "tartine-avocat-oeuf": "https://www.themealdb.com/images/media/meals/uttuxy1511382180.jpg",
+  "poke-saumon": "https://www.themealdb.com/images/media/meals/xxyupu1468262513.jpg",
+  "chili": "https://www.themealdb.com/images/media/meals/tqd7s21763780609.jpg",
+  "riz-cantonais": "https://www.themealdb.com/images/media/meals/wuyd2h1765655837.jpg",
+  "galette-sarrasin": "https://www.themealdb.com/images/media/meals/c400ok1764439058.jpg",
+  "salade-lentilles": "https://www.themealdb.com/images/media/meals/ysqrus1487425681.jpg",
+  "burger-dinde": "https://www.themealdb.com/images/media/meals/k420tj1585565244.jpg",
+  "couscous-poulet": "https://www.themealdb.com/images/media/meals/qxytrx1511304021.jpg",
+  "pates-pesto": "https://www.themealdb.com/images/media/meals/wtsvxx1511296896.jpg",
+  "veloute-potiron": "https://www.themealdb.com/images/media/meals/tvvxpv1511191952.jpg",
+  "papillote-poisson": "https://www.themealdb.com/images/media/meals/vptqpw1511798500.jpg",
+  "boulettes-dinde": "https://www.themealdb.com/images/media/meals/2wt8721763334199.jpg",
+  "gratin-courgettes": "https://www.themealdb.com/images/media/meals/qwrtut1468418027.jpg",
+  "wok-nouilles": "https://www.themealdb.com/images/media/meals/568t931763584227.jpg",
+  "quiche-sans-pate": "https://www.themealdb.com/images/media/meals/5sgsob1763196284.jpg",
+  "brochettes-poulet": "https://www.themealdb.com/images/media/meals/prjve31763486864.jpg",
+  "dahl": "https://www.themealdb.com/images/media/meals/wuxrtu1483564410.jpg",
+  "cottage-noix": "https://www.themealdb.com/images/media/meals/rsqwus1511640214.jpg",
+  "banane-choco": "https://www.themealdb.com/images/media/meals/ul2uy31764794321.jpg",
+  "mix-oleagineux": "https://www.themealdb.com/images/media/meals/9aia021779646058.jpg",
+  "galette-riz-amande": "https://www.themealdb.com/images/media/meals/vwuprt1511813703.jpg",
+  "skyr-granola": "https://www.themealdb.com/images/media/meals/y2irzl1585563479.jpg",
+};
+
 const r = (id: string, name: string, emoji: string, kw: string, lock: number, meal: MealKey, time: number, kcal: number, protein: number, carbs: number, fat: number, tag: string, ingredients: string[], steps: string[]): LibRecipe =>
-  ({ id, name, emoji, photo: foodPhoto(kw, lock), meal, time, kcal, protein, carbs, fat, tag, ingredients, steps });
+  ({ id, name, emoji, photo: PHOTOS[id] ?? foodPhoto(kw, lock), meal, time, kcal, protein, carbs, fat, tag, ingredients, steps });
 
 export const recipes: LibRecipe[] = [
   // Petit-déjeuner
