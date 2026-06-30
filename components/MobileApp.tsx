@@ -14,7 +14,8 @@ import { analyzeFoodPhoto, type FoodAnalysis } from "@/lib/vision";
 import { suggestMeals, normIngredients, type AiMeal } from "@/lib/meals";
 import { translateTexts } from "@/lib/translate";
 import type { Profile } from "@/lib/supabase";
-import { coachThread, coachChips, progressTimeline } from "@/lib/data";
+import { coachChips, progressTimeline } from "@/lib/data";
+import { askCoach, type CoachMsg } from "@/lib/coach";
 import { exercises, intensityClass, type Exercise, type Intensity } from "@/lib/exercises";
 import { loadPantry, addPantryItem, addManyToBuy, setPantryStatus, removePantryItem, searchCatalog, STAPLES, type PantryItem } from "@/lib/pantry";
 import { mealCategories, mealsByCategory, mealLookup, type MealLite, type MealFull } from "@/lib/themealdb";
@@ -93,7 +94,7 @@ export default function MobileApp() {
               {tab === "repas" && <RepasScreen day={day} profile={profile} target={target} go={setTab} />}
               {tab === "scan" && <ScanScreen day={day} />}
               {tab === "exo" && <ExoScreen day={day} target={target} />}
-              {tab === "coach" && <CoachScreen />}
+              {tab === "coach" && <CoachScreen profile={profile} day={day} target={target} />}
               {tab === "stats" && <StatsScreen profile={profile} day={day} go={setTab} />}
               {tab === "profil" && <ProfilScreen profile={profile} email={user?.email ?? ""} go={setTab} />}
               {tab === "courses" && <CoursesScreen back={() => setTab("repas")} />}
@@ -1159,26 +1160,58 @@ function LibRecipeModal({ recipe, pantry, userId, day, go, onClose }: { recipe: 
 }
 
 /* ---------------- COACH IA (démo) ---------------- */
-function CoachScreen() {
+function CoachScreen({ profile, day, target }: { profile: Profile | null; day: Day; target: number }) {
+  const first = profile?.display_name ? profile.display_name.split(" ")[0] : "";
+  const [messages, setMessages] = useState<{ from: "ai" | "me"; text: string }[]>([
+    { from: "ai", text: `Salut ${first} 👋 Je suis ton coach BODYUP. Pose-moi tes questions sur ta nutrition, tes objectifs ou tes entraînements — je connais tes stats du jour et je m'adapte à toi.` },
+  ]);
   const [draft, setDraft] = useState("");
-  const delay = [s.r2, s.r3, s.r4];
+  const [busy, setBusy] = useState(false);
+  const scroller = useRef<HTMLDivElement | null>(null);
+  useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" }); }, [messages, busy]);
+
+  const send = async (text: string) => {
+    const q = text.trim();
+    if (!q || busy) return;
+    setDraft("");
+    const next = [...messages, { from: "me" as const, text: q }];
+    setMessages(next);
+    setBusy(true);
+    try {
+      const history: CoachMsg[] = next.slice(1).map((m) => ({ role: m.from === "me" ? "user" : "assistant", text: m.text }));
+      const reply = await askCoach(history, {
+        name: profile?.display_name, goal: profile?.goal, weight_kg: profile?.weight_kg, target_kg: profile?.target_kg,
+        calorie_target: target, tdee: profile?.tdee,
+        today: { consumed: day.consumed, remaining: target - day.consumed, protein: day.macros.p, carbs: day.macros.c, fat: day.macros.f, glasses: day.glasses, steps: day.steps, burned: day.burned },
+      });
+      setMessages((m) => [...m, { from: "ai", text: reply || "Désolé, je n'ai pas de réponse là tout de suite." }]);
+    } catch (e) {
+      setMessages((m) => [...m, { from: "ai", text: `⚠️ ${e instanceof Error ? e.message : "Coach indisponible"}.\nVérifie que la fonction « coach » est bien déployée dans Supabase.` }]);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <>
       <div className={`${s.coachhead} ${s.r} ${s.r1}`}>
         <div className={s.orb}><Icon name="spark" size={24} /></div>
-        <div><b>Coach BODYUP <span className={s.demoflag}>DÉMO</span></b><span className={s.on}><i />En ligne · 24h/24</span></div>
+        <div><b>Coach BODYUP</b><span className={s.on}><i />En ligne · 24h/24</span></div>
       </div>
-      <div className={s.chat}>
-        {coachThread.map((m, i) => (
-          <div key={i} className={`${s.bub} ${m.from === "ai" ? s.ai : s.me} ${s.r} ${delay[i] ?? ""}`} dangerouslySetInnerHTML={{ __html: m.html }} />
+      <div className={s.chat} ref={scroller}>
+        {messages.map((m, i) => (
+          <div key={i} className={`${s.bub} ${m.from === "ai" ? s.ai : s.me}`} style={{ whiteSpace: "pre-wrap" }}>{m.text}</div>
         ))}
-        <div className={`${s.chips} ${s.r} ${s.r5}`}>
-          {coachChips.map((c) => <span key={c} className={s.chip} onClick={() => setDraft(c)}>{c}</span>)}
-        </div>
+        {busy && <div className={`${s.bub} ${s.ai}`}><span className={s.typing}><i /><i /><i /></span></div>}
+        {messages.length <= 1 && (
+          <div className={s.chips}>
+            {coachChips.map((c) => <span key={c} className={s.chip} onClick={() => send(c)}>{c}</span>)}
+          </div>
+        )}
       </div>
       <div className={`${s.composer} ${s.r} ${s.r6}`}>
-        <input placeholder="Pose ta question au coach…" value={draft} onChange={(e) => setDraft(e.target.value)} />
-        <button className={s.snd}><Icon name="send" size={18} /></button>
+        <input placeholder="Pose ta question au coach…" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(draft); }} disabled={busy} />
+        <button className={s.snd} onClick={() => send(draft)} disabled={busy} aria-label="Envoyer"><Icon name="send" size={18} /></button>
       </div>
     </>
   );
