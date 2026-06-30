@@ -19,7 +19,7 @@ import { askCoach, type CoachMsg } from "@/lib/coach";
 import { exercises, intensityClass, type Exercise, type Intensity } from "@/lib/exercises";
 import { loadPantry, addPantryItem, addManyToBuy, setPantryStatus, removePantryItem, searchCatalog, STAPLES, type PantryItem } from "@/lib/pantry";
 import { mealCategories, mealsByCategory, mealLookup, type MealLite, type MealFull } from "@/lib/themealdb";
-import { loadConnections, sendInvite, acceptInvite, removeConnection, loadSharedData, resolveUsername, setUsername, SHARE_LABELS, ALL_CATS, type Connection, type ShareCat, type SharedData } from "@/lib/social";
+import { loadConnections, sendInvite, acceptInvite, removeConnection, loadSharedData, resolveUsername, setUsername, shareRecipe, loadReceivedRecipes, markRecipeSeen, SHARE_LABELS, ALL_CATS, type Connection, type ShareCat, type SharedData, type SharedRecipe } from "@/lib/social";
 import { loadStats, computePoints, levelFor, emojiForLevel, persistGamification, BADGES, type Stats } from "@/lib/gamification";
 import { recipes as libRecipes, aiPhoto, shuffleSeeded, ytId, type LibRecipe } from "@/lib/recipes";
 
@@ -1085,23 +1085,37 @@ function BarcodeScanner({ onDetected, onClose, onUnsupported }: { onDetected: (v
 
 /* ---------------- BIBLIOTHÈQUE DE RECETTES (FR, avec photos) ---------------- */
 function Library({ day, pantry, userId, go }: { day: Day; pantry: string[]; userId?: string; go: (t: Tab) => void }) {
+  const { profile } = useAuth();
   const [meal, setMeal] = useState<"all" | MealKey>("all");
   const [sel, setSel] = useState<LibRecipe | null>(null);
   // Rotation : l'ordre est mélangé à chaque visite (seed aléatoire) et au clic sur « Autres ».
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e9));
   // Recettes FR traduites (TheMealDB, avec photos + vidéos), chargées à la volée.
   const [extra, setExtra] = useState<LibRecipe[]>([]);
+  // Partage entre amis
+  const [friends, setFriends] = useState<{ id: string; name: string }[]>([]);
+  const [received, setReceived] = useState<SharedRecipe[]>([]);
+  const [inbox, setInbox] = useState(false);
   useEffect(() => { import("@/lib/recipes-fr.json").then((m) => setExtra((m.default as unknown as LibRecipe[]) ?? [])).catch(() => {}); }, []);
+  useEffect(() => {
+    if (!userId) return;
+    loadConnections().then((cs) => setFriends(cs.filter((c) => c.status === "accepted").map((c) => {
+      const me = c.requester_id === userId;
+      return { id: me ? c.addressee_id : c.requester_id, name: (me ? c.addressee_username : c.requester_username) ?? "ami" };
+    })));
+    loadReceivedRecipes().then((rs) => setReceived(rs.filter((x) => x.to_user === userId)));
+  }, [userId]);
   const filters: [string, string][] = [["all", "Tous"], ["petit-dej", "Petit-déj"], ["dejeuner", "Déjeuner"], ["diner", "Dîner"], ["collation", "Collation"]];
   const all = useMemo(() => [...libRecipes, ...extra], [extra]);
   const list = useMemo(() => shuffleSeeded(all.filter((r) => meal === "all" || r.meal === meal), seed), [all, meal, seed]);
+  const unseen = received.filter((x) => !x.seen).length;
   return (
     <>
       <div className={`${s.exfrow} ${s.r} ${s.r3}`}>
         {filters.map(([v, l]) => <span key={v} className={`${s.ef} ${meal === v ? s.on : ""}`} onClick={() => setMeal(v as "all" | MealKey)}>{l}</span>)}
       </div>
       <div className={`${s.libbar} ${s.r} ${s.r3}`}>
-        <span>{list.length} recettes</span>
+        <button onClick={() => setInbox(true)}><Icon name="users" size={14} />Reçues{received.length ? ` (${received.length})` : ""}{unseen ? <span className={s.dotbadge} /> : null}</button>
         <button onClick={() => setSeed(Math.floor(Math.random() * 1e9))}><Icon name="refresh" size={14} />Autres recettes</button>
       </div>
       <div className={`${s.rgrid} ${s.r} ${s.r4}`}>
@@ -1112,14 +1126,45 @@ function Library({ day, pantry, userId, go }: { day: Day; pantry: string[]; user
           </div>
         ))}
       </div>
-      {sel && <LibRecipeModal recipe={sel} pantry={pantry} userId={userId} day={day} go={go} onClose={() => setSel(null)} />}
+
+      {inbox && (
+        <div className={s.modalwrap} onClick={() => setInbox(false)}>
+          <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
+            <h3>Recettes reçues <span className={s.x} onClick={() => setInbox(false)}>✕</span></h3>
+            {received.length === 0 ? (
+              <div className={s.pempty}>Aucune recette reçue pour l’instant. Tes amis peuvent t’en envoyer depuis une fiche recette.</div>
+            ) : received.map((sr) => (
+              <div key={sr.id} className={s.connrow} style={{ cursor: "pointer" }} onClick={() => { setInbox(false); setSel(sr.recipe); if (!sr.seen) { markRecipeSeen(sr.id); setReceived((rs) => rs.map((x) => x.id === sr.id ? { ...x, seen: true } : x)); } }}>
+                <img src={sr.recipe.photo} alt="" style={{ width: 46, height: 46, borderRadius: 10, objectFit: "cover", flex: "0 0 auto" }} />
+                <div className={s.ce}><b>{sr.recipe.name}</b><span>de @{sr.from_username ?? "ami"}{!sr.seen ? " · nouveau" : ""}</span></div>
+                <span className={s.ch}>›</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {sel && <LibRecipeModal recipe={sel} pantry={pantry} userId={userId} myUsername={profile?.username ?? null} friends={friends} day={day} go={go} onClose={() => setSel(null)} />}
     </>
   );
 }
 
-function LibRecipeModal({ recipe, pantry, userId, day, go, onClose }: { recipe: LibRecipe; pantry: string[]; userId?: string; day: Day; go: (t: Tab) => void; onClose: () => void }) {
+function LibRecipeModal({ recipe, pantry, userId, myUsername, friends, day, go, onClose }: { recipe: LibRecipe; pantry: string[]; userId?: string; myUsername?: string | null; friends?: { id: string; name: string }[]; day: Day; go: (t: Tab) => void; onClose: () => void }) {
   const [added, setAdded] = useState(false);
   const [bought, setBought] = useState(false);
+  const [picker, setPicker] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const pals = friends ?? [];
+  const share = async (friendId: string, friendName: string) => {
+    if (!userId || sending) return;
+    setSending(true);
+    const err = await shareRecipe(userId, myUsername ?? null, friendId, recipe);
+    setSending(false);
+    if (err) { setSentTo(`⚠️ ${err}`); return; }
+    setSentTo(`Envoyée à ${friendName} ✓`);
+    setTimeout(() => setPicker(false), 1100);
+  };
   const has = (ing: string) => pantry.some((p) => ing.toLowerCase().includes(p.toLowerCase()));
   const missing = recipe.ingredients.filter((i) => !has(i));
   return (
@@ -1150,10 +1195,35 @@ function LibRecipeModal({ recipe, pantry, userId, day, go, onClose }: { recipe: 
         )}
         <div className={s.rsec}>Préparation</div>
         <ol className={s.rsteps}>{recipe.steps.map((x, i) => <li key={i}>{x}</li>)}</ol>
-        <div className={s.scanbtns} style={{ marginTop: 16 }}>
+
+        {userId && (
+          <button className={`${s.btn} ${s.ghost}`} style={{ width: "100%", marginTop: 10 }} onClick={() => { setSentTo(null); setPicker(true); }}>
+            <Icon name="users" size={16} />Partager à un ami
+          </button>
+        )}
+
+        <div className={s.scanbtns} style={{ marginTop: 10 }}>
           <button className={`${s.btn} ${s.ghost}`} onClick={() => { onClose(); go("courses"); }}><Icon name="cart" size={16} />Ma liste</button>
           <button className={`${s.btn} ${s.prim}`} disabled={added} onClick={async () => { await day.addEntry({ meal_type: recipe.meal, name: recipe.name, qty: "1 portion", kcal: recipe.kcal, protein: recipe.protein, carbs: recipe.carbs, fat: recipe.fat }); setAdded(true); }}><Icon name={added ? "check" : "plus"} size={16} />{added ? "Ajouté" : "Au journal"}</button>
         </div>
+
+        {picker && (
+          <div className={s.modalwrap} onClick={() => setPicker(false)}>
+            <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
+              <h3>Partager « {recipe.name} » <span className={s.x} onClick={() => setPicker(false)}>✕</span></h3>
+              {sentTo && <div className={s.pempty} style={{ color: sentTo.startsWith("⚠️") ? "var(--coral)" : "var(--lime)" }}>{sentTo}</div>}
+              {pals.length === 0 ? (
+                <div className={s.pempty}>Aucun ami connecté. Ajoute des amis dans Profil → Partage, puis reviens ici.</div>
+              ) : pals.map((f) => (
+                <div key={f.id} className={s.connrow} style={{ cursor: sending ? "wait" : "pointer", opacity: sending ? 0.6 : 1 }} onClick={() => share(f.id, f.name)}>
+                  <div className={s.av2}>{(f.name[0] ?? "?").toUpperCase()}</div>
+                  <div className={s.ce}><b>@{f.name}</b><span>Envoyer cette recette</span></div>
+                  <span className={s.ch}><Icon name="send" size={15} /></span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

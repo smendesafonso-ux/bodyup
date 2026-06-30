@@ -1,6 +1,7 @@
 "use client";
 
 import { supabase, todayISO } from "./supabase";
+import type { LibRecipe } from "./recipes";
 
 export type ShareCat = "poids" | "pas" | "courses";
 export const SHARE_LABELS: Record<ShareCat, string> = { poids: "Poids & évolution", pas: "Pas & sommeil", courses: "Liste de courses" };
@@ -62,6 +63,36 @@ export interface SharedData {
   steps: number;
   sleepMin: number;
   buy: { name: string; category: string }[];
+}
+
+/* ---------- Partage de recettes entre amis ---------- */
+export interface SharedRecipe {
+  id: string;
+  from_user: string;
+  from_username: string | null;
+  to_user: string;
+  recipe: LibRecipe;
+  seen: boolean;
+  created_at: string;
+}
+
+export async function shareRecipe(fromUser: string, fromUsername: string | null, toUser: string, recipe: LibRecipe): Promise<string | null> {
+  const { error } = await supabase.from("shared_recipes").insert({ from_user: fromUser, from_username: fromUsername, to_user: toUser, recipe });
+  if (error) return error.message;
+  return null;
+}
+
+export async function loadReceivedRecipes(): Promise<SharedRecipe[]> {
+  const { data } = await supabase.from("shared_recipes").select("*").order("created_at", { ascending: false }).limit(100);
+  return (data as SharedRecipe[]) ?? [];
+}
+
+export async function markRecipeSeen(id: string): Promise<void> {
+  await supabase.from("shared_recipes").update({ seen: true }).eq("id", id);
+}
+
+export async function deleteSharedRecipe(id: string): Promise<void> {
+  await supabase.from("shared_recipes").delete().eq("id", id);
 }
 
 export async function loadSharedData(otherId: string): Promise<SharedData> {
