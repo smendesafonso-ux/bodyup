@@ -16,6 +16,7 @@ import { translateTexts } from "@/lib/translate";
 import type { Profile } from "@/lib/supabase";
 import { coachChips, progressTimeline } from "@/lib/data";
 import { askCoach, type CoachMsg } from "@/lib/coach";
+import { notifSupported, notifPermission, requestNotif, showNotif, remindersEnabled, setRemindersEnabled, startReminderLoop } from "@/lib/notifications";
 import { exercises, intensityClass, type Exercise, type Intensity } from "@/lib/exercises";
 import { loadPantry, addPantryItem, addManyToBuy, setPantryStatus, removePantryItem, searchCatalog, STAPLES, type PantryItem } from "@/lib/pantry";
 import { mealCategories, mealsByCategory, mealLookup, type MealLite, type MealFull } from "@/lib/themealdb";
@@ -62,6 +63,8 @@ export default function MobileApp() {
   const day = useDay(user?.id);
   const [tab, setTab] = useState<Tab>("home");
   const [addMeal, setAddMeal] = useState<MealKey | null>(null);
+  // Rappels locaux (hydratation, repas, bilan) tant que la PWA tourne.
+  useEffect(() => { const id = startReminderLoop(); return () => clearInterval(id); }, []);
 
   const target = profile?.calorie_target ?? 2000;
 
@@ -1491,10 +1494,18 @@ function CmpRow({ label, mine, theirs, lead }: { label: string; mine: string; th
 function ProfilScreen({ profile, email, go }: { profile: Profile | null; email: string; go: (t: Tab) => void }) {
   const { signOut, user } = useAuth();
   const [stats, setStats] = useState<Stats | null>(null);
+  const [perm, setPerm] = useState<NotificationPermission>("default");
+  const [rem, setRem] = useState(false);
   useEffect(() => {
     if (!user) return;
     loadStats(user.id).then((st) => { setStats(st); const p = computePoints(st); persistGamification(user.id, p, levelFor(p)); });
   }, [user]);
+  useEffect(() => { setPerm(notifPermission()); setRem(remindersEnabled()); }, []);
+  const enableNotifs = async () => {
+    const p = await requestNotif(); setPerm(p);
+    if (p === "granted") { setRemindersEnabled(true); setRem(true); showNotif("Notifications activées ✅", "Tu recevras tes rappels hydratation & repas."); }
+  };
+  const toggleRem = () => { const v = !rem; setRem(v); setRemindersEnabled(v); };
 
   const name = profile?.display_name ?? "Utilisateur";
   const goalLabel = profile?.goal === "perte" ? "perte de poids" : profile?.goal === "masse" ? "prise de masse" : "maintien";
@@ -1545,6 +1556,29 @@ function ProfilScreen({ profile, email, go }: { profile: Profile | null; email: 
       <div className={s.sectionH} style={{ marginTop: 22 }}><h3>Social</h3></div>
       <div className={`${s.plist} ${s.r} ${s.r4}`}>
         <ProfRow icon="fit" label="Partage & proches" chevron onClick={() => go("partage")} />
+      </div>
+
+      <div className={s.sectionH} style={{ marginTop: 22 }}><h3>Notifications</h3></div>
+      <div className={`${s.plist} ${s.r} ${s.r4}`}>
+        {!notifSupported() ? (
+          <div className={s.prow}><div className={s.pic}><Icon name="bell" size={17} /></div>Non supporté sur cet appareil</div>
+        ) : perm !== "granted" ? (
+          <div className={s.prow} onClick={enableNotifs} style={{ cursor: "pointer" }}>
+            <div className={s.pic}><Icon name="bell" size={17} /></div>{perm === "denied" ? "Notifications bloquées (à réactiver dans les réglages)" : "Activer les notifications"}
+            {perm !== "denied" && <span className={s.ch}>›</span>}
+          </div>
+        ) : (
+          <>
+            <div className={s.prow}>
+              <div className={s.pic}><Icon name="bell" size={17} /></div>Rappels (eau, repas, bilan)
+              <span className={s.val} onClick={toggleRem} style={{ cursor: "pointer", color: rem ? "var(--lime)" : "var(--txt-3)" }}>{rem ? "Activés" : "Désactivés"}</span>
+            </div>
+            <div className={s.prow} onClick={() => showNotif("Test 🔔", "Voici à quoi ressemblera un rappel BODYUP.")} style={{ cursor: "pointer" }}>
+              <div className={s.pic}><Icon name="spark" size={17} /></div>Envoyer une notification test
+              <span className={s.ch}>›</span>
+            </div>
+          </>
+        )}
       </div>
 
       <div className={s.sectionH}><h3>Connexions santé <span className={s.demoflag}>BIENTÔT</span></h3></div>
