@@ -29,7 +29,6 @@
 @media(max-width:430px){
   .statusbar{display:none}
   .view{padding-top:calc(10px + env(safe-area-inset-top))}
-  .modalwrap{position:fixed}
 }
 /* Mode paysage (téléphone) : plein écran, contenu en colonne centrée */
 @media (orientation: landscape) and (max-height: 600px){
@@ -40,7 +39,6 @@
   .statusbar{display:none}
   .view{max-width:640px;width:100%;margin:0 auto;padding-top:calc(10px + env(safe-area-inset-top))}
   .tabinner{max-width:640px;margin:0 auto}
-  .modalwrap{position:fixed}
 }
 
 .view{flex:1;overflow-y:auto;overflow-x:hidden;padding:6px 20px calc(124px + env(safe-area-inset-bottom));scrollbar-width:none;-webkit-overflow-scrolling:touch}
@@ -559,6 +557,9 @@
 
 /* ---------- add-food sheet / modal ---------- */
 .modalwrap{position:absolute;top:0;left:0;right:0;bottom:0;z-index:60;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.5);backdrop-filter:blur(3px);animation:fade .25s ease}
+/* Fenêtres de SAISIE : centrées verticalement pour rester visibles au-dessus du clavier */
+.centerwrap{align-items:center;padding:18px}
+.centerwrap .sheet{border-radius:24px;max-height:82%;animation:fade .2s ease}
 .sheet{width:100%;max-height:100%;overflow-y:auto;background:var(--ink);border:1px solid var(--card-bd);border-radius:28px 28px 0 0;padding:22px 20px calc(22px + env(safe-area-inset-bottom));animation:up .3s cubic-bezier(.2,.8,.2,1);scrollbar-width:none}
 .sheet::-webkit-scrollbar{display:none}
 @keyframes up{from{transform:translateY(100%)}to{transform:none}}

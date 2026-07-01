@@ -1428,7 +1428,7 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
       </div>
 
       {editW && (
-        <div className={s.modalwrap} onClick={() => setEditW(false)}>
+        <div className={`${s.modalwrap} ${s.centerwrap}`} onClick={() => setEditW(false)}>
           <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
             <h3>Mettre à jour mon poids <span className={s.x} onClick={() => setEditW(false)}>✕</span></h3>
             <label>Poids (kg)</label>
@@ -1439,7 +1439,7 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
       )}
 
       {editA && (
-        <div className={s.modalwrap} onClick={() => setEditA(false)}>
+        <div className={`${s.modalwrap} ${s.centerwrap}`} onClick={() => setEditA(false)}>
           <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
             <h3>Activité du jour <span className={s.x} onClick={() => setEditA(false)}>✕</span></h3>
             <label>Nombre de pas</label>
@@ -1856,7 +1856,7 @@ function PartageScreen({ back }: { back: () => void }) {
       )}
 
       {editU && (
-        <div className={s.modalwrap} onClick={() => setEditU(false)}>
+        <div className={`${s.modalwrap} ${s.centerwrap}`} onClick={() => setEditU(false)}>
           <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
             <h3>Ton nom d&apos;utilisateur <span className={s.x} onClick={() => setEditU(false)}>✕</span></h3>
             <label>Choisis un identifiant unique (ce que tes proches saisiront)</label>
