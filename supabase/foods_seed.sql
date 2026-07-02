@@ -56,13 +56,12 @@ insert into public.foods (name, category, kcal, protein, carbs, fat) values
 ('Merguez','Viandes & poissons',290,14,2,25),('Œuf entier','Viandes & poissons',155,13,1.1,11),
 ('Blanc d''œuf','Viandes & poissons',52,11,0.7,0.2),('Steak haché de soja','Viandes & poissons',150,17,6,6),
 -- Produits laitiers
-('Lait demi-écrémé','Produits laitiers',46,3.3,4.8,1.6),('Yaourt nature','Produits laitiers',61,3.5,4.7,3.3),
+('Yaourt nature','Produits laitiers',61,3.5,4.7,3.3),
 ('Yaourt grec','Produits laitiers',97,9,4,5),('Skyr nature','Produits laitiers',63,11,4,0.2),
 ('Fromage blanc 0%','Produits laitiers',47,8,4,0.2),('Comté','Produits laitiers',410,27,0,33),
 ('Mozzarella','Produits laitiers',280,22,2.2,17),('Emmental','Produits laitiers',380,28,0,29),
 ('Camembert','Produits laitiers',300,20,0.5,24),('Feta','Produits laitiers',264,14,4,21),
 ('Beurre','Produits laitiers',717,0.9,0.1,81),('Crème fraîche 30%','Produits laitiers',290,2.4,3,30),
-('Lait d''amande','Produits laitiers',24,0.5,3,1.1),
 -- Féculents & céréales
 ('Riz blanc (cuit)','Féculents & céréales',130,2.7,28,0.3),('Riz complet (cuit)','Féculents & céréales',111,2.6,23,0.9),
 ('Pâtes (cuites)','Féculents & céréales',131,5,25,1.1),('Pâtes complètes (cuites)','Féculents & céréales',124,5,26,0.9),
@@ -87,12 +86,46 @@ insert into public.foods (name, category, kcal, protein, carbs, fat) values
 ('Chocolat noir 70%','Sucré',598,8,46,43),('Chocolat au lait','Sucré',535,7.6,59,30),('Sucre','Sucré',400,0,100,0),
 ('Croissant','Sucré',406,8,46,21),('Pain au chocolat','Sucré',414,8,47,22),('Cookie','Sucré',480,5,64,22),
 ('Madeleine','Sucré',460,6,58,22),('Compote de pomme','Sucré',42,0.2,10,0.1),
--- Boissons
-('Jus d''orange','Boissons',45,0.7,10,0.2),('Coca-Cola','Boissons',42,0,10.6,0),('Bière','Boissons',43,0.5,3.6,0),
-('Vin rouge','Boissons',85,0.1,2.6,0),('Café noir','Boissons',2,0.1,0,0),('Jus de pomme','Boissons',46,0.1,11,0.1),
 -- Plats & divers
 ('Pizza margherita','Plats',266,11,33,10),('Frites','Plats',312,3.4,41,15),('Quiche lorraine','Plats',280,9,22,18),
 ('Sushi','Plats',140,4,30,0.5),('Houmous','Plats',166,8,14,10),('Ketchup','Plats',112,1.3,26,0.2),
 ('Mayonnaise','Plats',680,1,2,75),('Sauce tomate','Plats',35,1.6,7,0.4),('Chips','Plats',536,6,53,34),
 ('Yaourt aux fruits','Plats',90,3.5,15,2.5),('Crêpe','Plats',220,6,30,8),('Pâtes bolognaise','Plats',130,6,16,4),
 ('Salade César','Plats',180,9,6,13),('Burger maison','Plats',250,15,20,12),('Wrap poulet','Plats',200,12,22,7);
+
+-- ---------- BOISSONS (valeurs pour 100 ml) ----------
+insert into public.foods (name, category, kcal, protein, carbs, fat, per) values
+-- Eaux & basiques
+('Eau','Boissons',0,0,0,0,'100 ml'),('Eau gazeuse','Boissons',0,0,0,0,'100 ml'),
+('Eau aromatisée (sucrée)','Boissons',20,0,4.8,0,'100 ml'),('Eau de coco','Boissons',19,0.7,3.7,0.2,'100 ml'),
+-- Cafés & thés
+('Café noir','Boissons',2,0.1,0,0,'100 ml'),('Café au lait','Boissons',27,1.5,2.4,1,'100 ml'),
+('Cappuccino','Boissons',35,1.7,3.5,1.5,'100 ml'),('Café latte','Boissons',42,2.2,3.8,1.9,'100 ml'),
+('Thé nature','Boissons',1,0,0.2,0,'100 ml'),('Thé glacé (Ice Tea)','Boissons',29,0,7,0,'100 ml'),
+('Chocolat chaud','Boissons',77,3.2,10,2.5,'100 ml'),('Kombucha','Boissons',19,0,4.5,0,'100 ml'),
+-- Sodas & boissons sucrées
+('Coca-Cola','Boissons',42,0,10.6,0,'100 ml'),('Coca-Cola zéro','Boissons',0,0,0,0,'100 ml'),
+('Orangina','Boissons',42,0,10,0,'100 ml'),('Fanta orange','Boissons',43,0,10.4,0,'100 ml'),
+('Sprite','Boissons',20,0,4.6,0,'100 ml'),('Limonade','Boissons',40,0,10,0,'100 ml'),
+('Schweppes tonic','Boissons',37,0,8.9,0,'100 ml'),('Red Bull','Boissons',45,0,11,0,'100 ml'),
+('Boisson énergisante (type Monster)','Boissons',47,0,11.5,0,'100 ml'),
+('Sirop à l''eau (dilué)','Boissons',35,0,8.7,0,'100 ml'),('Boisson isotonique (sport)','Boissons',26,0,6.3,0,'100 ml'),
+-- Jus & smoothies
+('Jus d''orange','Boissons',45,0.7,10,0.2,'100 ml'),('Jus de pomme','Boissons',46,0.1,11,0.1,'100 ml'),
+('Jus de raisin','Boissons',63,0.3,15,0.1,'100 ml'),('Jus multifruits','Boissons',50,0.4,11.5,0.1,'100 ml'),
+('Jus d''ananas','Boissons',53,0.4,12.6,0.1,'100 ml'),('Jus de tomate','Boissons',20,0.8,3.5,0.1,'100 ml'),
+('Smoothie aux fruits','Boissons',55,0.7,12,0.3,'100 ml'),('Citronnade','Boissons',40,0.1,10,0,'100 ml'),
+-- Laits & boissons végétales
+('Lait entier','Boissons',65,3.2,4.7,3.6,'100 ml'),('Lait demi-écrémé','Boissons',46,3.3,4.8,1.6,'100 ml'),
+('Lait écrémé','Boissons',33,3.3,4.9,0.1,'100 ml'),('Lait d''amande','Boissons',24,0.5,3,1.1,'100 ml'),
+('Lait de soja','Boissons',40,3.3,2.5,1.9,'100 ml'),('Lait d''avoine','Boissons',45,0.4,7.5,1.4,'100 ml'),
+('Lait de coco (boisson)','Boissons',20,0.2,2.7,0.9,'100 ml'),('Milkshake vanille','Boissons',112,3.5,17,3.2,'100 ml'),
+-- Alcools
+('Bière','Boissons',43,0.5,3.6,0,'100 ml'),('Bière sans alcool','Boissons',24,0.4,5.3,0,'100 ml'),
+('Vin rouge','Boissons',85,0.1,2.6,0,'100 ml'),('Vin blanc sec','Boissons',77,0.1,0.9,0,'100 ml'),
+('Vin rosé','Boissons',75,0.1,1.5,0,'100 ml'),('Champagne','Boissons',76,0.2,1.4,0,'100 ml'),
+('Cidre brut','Boissons',42,0,3,0,'100 ml'),('Whisky','Boissons',222,0,0,0,'100 ml'),
+('Vodka','Boissons',222,0,0,0,'100 ml'),('Rhum','Boissons',222,0,0,0,'100 ml'),
+('Gin','Boissons',222,0,0,0,'100 ml'),('Pastis','Boissons',250,0,3,0,'100 ml'),
+('Mojito','Boissons',87,0,8,0,'100 ml'),('Spritz','Boissons',80,0,6,0,'100 ml'),
+('Sangria','Boissons',80,0.1,7,0,'100 ml');

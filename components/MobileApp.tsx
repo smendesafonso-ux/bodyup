@@ -7,9 +7,11 @@ import { Icon, type IconName } from "./Icon";
 import { CalorieRing } from "./CalorieRing";
 import { fr } from "@/lib/nutrition";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/lib/supabase";
+import { supabase, todayISO } from "@/lib/supabase";
 import { useDay, type NewFood } from "@/lib/useDay";
-import { searchFoods, lookupBarcode, type FoodHit } from "@/lib/foods";
+import { searchFoods, searchFoodsInstant, localFoodByName, lookupBarcode, type FoodHit } from "@/lib/foods";
+import { QUICK_DRINKS } from "@/lib/foods-local";
+import { loadHistory, buildHistoryCsv, downloadCsv, type DayHistory } from "@/lib/history";
 import { analyzeFoodPhoto, type FoodAnalysis } from "@/lib/vision";
 import { suggestMeals, normIngredients, type AiMeal } from "@/lib/meals";
 import { translateTexts } from "@/lib/translate";
@@ -24,7 +26,7 @@ import { loadConnections, sendInvite, acceptInvite, removeConnection, loadShared
 import { loadStats, computePoints, levelFor, emojiForLevel, persistGamification, BADGES, type Stats } from "@/lib/gamification";
 import { recipes as libRecipes, aiPhoto, shuffleSeeded, ytId, type LibRecipe } from "@/lib/recipes";
 
-type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil" | "courses" | "progress" | "partage";
+type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil" | "courses" | "progress" | "partage" | "histo";
 type Day = ReturnType<typeof useDay>;
 type MealKey = "petit-dej" | "dejeuner" | "collation" | "diner";
 
@@ -102,6 +104,7 @@ export default function MobileApp() {
               {tab === "profil" && <ProfilScreen profile={profile} email={user?.email ?? ""} go={setTab} />}
               {tab === "courses" && <CoursesScreen back={() => setTab("repas")} />}
               {tab === "progress" && <ProgressScreen profile={profile} back={() => setTab("stats")} />}
+              {tab === "histo" && <HistoryScreen back={() => setTab("stats")} />}
               {tab === "partage" && <PartageScreen back={() => setTab("profil")} />}
             </div>
           </div>
@@ -290,7 +293,7 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
   const [searching, setSearching] = useState(false);
   const [sel, setSel] = useState<FoodHit | null>(null);
   const [grams, setGrams] = useState("100");
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const reqId = useRef(0);
 
   // saisie manuelle
   const [name, setName] = useState("");
@@ -300,15 +303,27 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
 
   useEffect(() => {
     if (sel) return;
-    if (query.trim().length < 2) { setResults([]); return; }
+    const q = query.trim();
+    if (q.length < 2) { setResults([]); setSearching(false); return; }
+    // 1) base embarquée : résultats immédiats, même hors-ligne
+    setResults(searchFoodsInstant(q));
     setSearching(true);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(async () => {
-      const r = await searchFoods(query);
-      setResults(r); setSearching(false);
-    }, 350);
-    return () => clearTimeout(timer.current);
+    // 2) recherche complète (Supabase + Open Food Facts) après une courte pause de frappe ;
+    //    reqId ignore les réponses arrivées trop tard (anti-résultats périmés)
+    const id = ++reqId.current;
+    const t = setTimeout(async () => {
+      const r = await searchFoods(q);
+      if (reqId.current === id) { setResults(r); setSearching(false); }
+    }, 300);
+    return () => clearTimeout(t);
   }, [query, sel]);
+
+  const pick = (r: FoodHit) => { setSel(r); setResults([]); setGrams(r.unit === "ml" ? "250" : "100"); };
+  const pickDrink = (name: string, ml: number) => {
+    const hit = localFoodByName(name);
+    if (hit) { setSel(hit); setResults([]); setQuery(""); setGrams(String(ml)); }
+  };
+  const unitLabel = sel?.unit === "ml" ? "ml" : "grammes";
 
   const g = parseFloat(grams) || 0;
   const factor = g / 100;
@@ -319,21 +334,34 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
     f: Math.round(sel.f100 * factor),
   } : null;
 
+  const [saveErr, setSaveErr] = useState<string | null>(null);
   const saveSearch = async () => {
     if (!sel || !calc || g <= 0) return;
-    setBusy(true);
-    await onSave({
-      meal_type: meal, name: sel.brand ? `${sel.name} (${sel.brand})` : sel.name, qty: `${g} g`,
-      kcal: calc.kcal, protein: calc.p, carbs: calc.c, fat: calc.f,
-    });
+    setBusy(true); setSaveErr(null);
+    try {
+      await onSave({
+        meal_type: meal, name: sel.brand ? `${sel.name} (${sel.brand})` : sel.name, qty: `${g} ${sel.unit ?? "g"}`,
+        kcal: calc.kcal, protein: calc.p, carbs: calc.c, fat: calc.f,
+      });
+    } catch (x) {
+      setSaveErr(x instanceof Error ? x.message : "Enregistrement impossible. Réessaie.");
+    } finally {
+      setBusy(false);
+    }
   };
   const saveManual = async () => {
     if (!name || !kcal) return;
-    setBusy(true);
-    await onSave({
-      meal_type: meal, name, qty: qty || null,
-      kcal: parseInt(kcal) || 0, protein: parseInt(mp) || 0, carbs: parseInt(mc) || 0, fat: parseInt(mf) || 0,
-    });
+    setBusy(true); setSaveErr(null);
+    try {
+      await onSave({
+        meal_type: meal, name, qty: qty || null,
+        kcal: parseInt(kcal) || 0, protein: parseInt(mp) || 0, carbs: parseInt(mc) || 0, fat: parseInt(mf) || 0,
+      });
+    } catch (x) {
+      setSaveErr(x instanceof Error ? x.message : "Enregistrement impossible. Réessaie.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -350,22 +378,32 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
           <>
             {!sel && (
               <>
-                <label>Rechercher un aliment</label>
-                <input className={s.inp} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ex : poulet, banane, Nutella…" autoFocus />
-                {searching && <div className={s.searching}><span className={s.sp} /> Recherche…</div>}
-                {!searching && results.length > 0 && (
+                <label>Rechercher un aliment ou une boisson</label>
+                <input className={s.inp} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ex : poulet, banane, coca, Nutella…" autoFocus />
+                {query.trim().length < 2 && (
+                  <>
+                    <div className={s.eflabel} style={{ marginTop: 12 }}>Boissons rapides</div>
+                    <div className={s.staplechips}>
+                      {QUICK_DRINKS.map((d) => (
+                        <span key={d.name} onClick={() => pickDrink(d.name, d.defaultMl)}>{d.emoji} {d.name}</span>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {results.length > 0 && (
                   <div className={s.results}>
                     {results.map((r, i) => (
-                      <div key={i} className={s.ritem} onClick={() => { setSel(r); setResults([]); }}>
+                      <div key={i} className={s.ritem} onClick={() => pick(r)}>
                         <div className={s.rn}>
                           <b>{r.name}</b>
-                          <span>{r.brand ? `${r.brand} · ` : ""}{r.kcal100} kcal / 100 g</span>
+                          <span>{r.brand ? `${r.brand} · ` : ""}{r.kcal100} kcal / 100 {r.unit ?? "g"}</span>
                         </div>
                         <span className={`${s.srcbadge} ${r.source === "base" ? s.srcbase : s.srcoff}`}>{r.source === "base" ? "BODYUP" : "OFF"}</span>
                       </div>
                     ))}
                   </div>
                 )}
+                {searching && <div className={s.searching}><span className={s.sp} /> Recherche en ligne (produits &amp; marques)…</div>}
                 {!searching && query.trim().length >= 2 && results.length === 0 && (
                   <div className={s.empty2}>Aucun résultat — essaie un autre terme ou la saisie manuelle.</div>
                 )}
@@ -375,13 +413,13 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
             {sel && calc && (
               <>
                 <div className={s.selfood}>
-                  <div className={s.sn}><b>{sel.name}</b><span>{sel.brand ? `${sel.brand} · ` : ""}{sel.kcal100} kcal / 100 g</span></div>
+                  <div className={s.sn}><b>{sel.name}</b><span>{sel.brand ? `${sel.brand} · ` : ""}{sel.kcal100} kcal / 100 {sel.unit ?? "g"}</span></div>
                   <button className={s.clear} onClick={() => { setSel(null); setGrams("100"); }} aria-label="Changer">✕</button>
                 </div>
                 <label>Quantité</label>
                 <div className={s.gramrow}>
                   <input className={s.inp} type="number" inputMode="numeric" value={grams} onChange={(e) => setGrams(e.target.value)} />
-                  <span className={s.u}>grammes</span>
+                  <span className={s.u}>{unitLabel}</span>
                 </div>
                 <div className={s.calcprev}>
                   <div><b>{calc.kcal}</b><span>kcal</span></div>
@@ -389,6 +427,7 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
                   <div><b>{calc.c}g</b><span>gluc</span></div>
                   <div><b>{calc.f}g</b><span>lip</span></div>
                 </div>
+                {saveErr && <div className={s.scanerr} style={{ margin: "10px 0 0" }}>{saveErr}</div>}
                 <button className={s.savebtn} onClick={saveSearch} disabled={busy || g <= 0}>{busy ? "Ajout…" : "Ajouter au journal"}</button>
               </>
             )}
@@ -409,6 +448,7 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
               <input className={s.inp} type="number" inputMode="numeric" value={mc} onChange={(e) => setMc(e.target.value)} placeholder="G" />
               <input className={s.inp} type="number" inputMode="numeric" value={mf} onChange={(e) => setMf(e.target.value)} placeholder="L" />
             </div>
+            {saveErr && <div className={s.scanerr} style={{ margin: "10px 0 0" }}>{saveErr}</div>}
             <button className={s.savebtn} onClick={saveManual} disabled={busy || !name || !kcal}>{busy ? "Ajout…" : "Ajouter au journal"}</button>
             <button className={s.switchmode} onClick={() => setMode("search")}><u>← Revenir à la recherche</u></button>
           </>
@@ -479,8 +519,13 @@ function ScanScreen({ day }: { day: Day }) {
   const addBarcode = async () => {
     if (!bcCalc || g <= 0) return;
     setBusy(true);
-    await day.addEntry({ meal_type: meal, name: bcName, qty: `${g} g`, kcal: bcCalc.kcal, protein: bcCalc.p, carbs: bcCalc.c, fat: bcCalc.f });
-    reset();
+    try {
+      await day.addEntry({ meal_type: meal, name: bcName, qty: `${g} g`, kcal: bcCalc.kcal, protein: bcCalc.p, carbs: bcCalc.c, fat: bcCalc.f });
+      reset();
+    } catch (x) {
+      setBusy(false);
+      setErr(x instanceof Error ? x.message : "Enregistrement impossible. Réessaie.");
+    }
   };
 
   // Photo : un item par aliment détecté (repli sur le total si la liste est vide)
@@ -497,14 +542,19 @@ function ScanScreen({ day }: { day: Day }) {
   const addPhotoItems = async () => {
     if (!photo || checked.size === 0) return;
     setBusy(true);
-    for (const i of checked) {
-      const it = photoItems[i];
-      if (!it) continue;
-      const v = scaleItem(it, i);
-      if (v.g <= 0) continue;
-      await day.addEntry({ meal_type: meal, name: it.name, qty: `${v.g} g`, kcal: v.kcal, protein: v.p, carbs: v.c, fat: v.fat });
+    try {
+      for (const i of checked) {
+        const it = photoItems[i];
+        if (!it) continue;
+        const v = scaleItem(it, i);
+        if (v.g <= 0) continue;
+        await day.addEntry({ meal_type: meal, name: it.name, qty: `${v.g} g`, kcal: v.kcal, protein: v.p, carbs: v.c, fat: v.fat });
+      }
+      reset();
+    } catch (x) {
+      setBusy(false);
+      setErr(x instanceof Error ? x.message : "Enregistrement impossible. Réessaie.");
     }
-    reset();
   };
 
   return (
@@ -712,7 +762,16 @@ function ExerciseDetail({ ex, day, onClose }: { ex: Exercise; day: Day; onClose:
   const mm = Math.floor(secs / 60);
   const ss = secs % 60;
 
-  const log = async () => { await day.addWorkout(ex.name, kcal); setLogged(true); setRunning(false); };
+  const [logErr, setLogErr] = useState<string | null>(null);
+  const log = async () => {
+    setLogErr(null);
+    try {
+      await day.addWorkout(ex.name, kcal);
+      setLogged(true); setRunning(false);
+    } catch (x) {
+      setLogErr(x instanceof Error ? x.message : "Enregistrement impossible. Réessaie.");
+    }
+  };
 
   return (
     <div className={s.modalwrap} onClick={onClose}>
@@ -749,6 +808,7 @@ function ExerciseDetail({ ex, day, onClose }: { ex: Exercise; day: Day; onClose:
         </div>
 
         {logged && <div className={s.exdone}><Icon name="check" size={18} />Séance ajoutée · +{kcal} kcal à ton budget</div>}
+        {logErr && <div className={s.scanerr} style={{ margin: "10px 0 0" }}>{logErr}</div>}
         <button className={s.savebtn} onClick={log} disabled={logged}>{logged ? "Ajouté ✓" : `J'ai terminé · +${kcal} kcal`}</button>
 
         <div className={s.rsec}>Comment faire</div>
@@ -840,8 +900,12 @@ function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile 
   const goals = macroGoals(target);
 
   const addMeal = async (m: AiMeal) => {
-    await day.addEntry({ meal_type: MEAL_TABS[mi].key, name: m.name, qty: "1 portion", kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat });
-    setAdded((a) => ({ ...a, [m.name]: true }));
+    try {
+      await day.addEntry({ meal_type: MEAL_TABS[mi].key, name: m.name, qty: "1 portion", kcal: m.kcal, protein: m.protein, carbs: m.carbs, fat: m.fat });
+      setAdded((a) => ({ ...a, [m.name]: true }));
+    } catch (x) {
+      setErr(x instanceof Error ? x.message : "Enregistrement impossible. Réessaie.");
+    }
   };
   const remaining = {
     kcal: Math.max(target - day.consumed + day.burned, 0),
@@ -1207,7 +1271,7 @@ function LibRecipeModal({ recipe, pantry, userId, myUsername, friends, day, go, 
 
         <div className={s.scanbtns} style={{ marginTop: 10 }}>
           <button className={`${s.btn} ${s.ghost}`} onClick={() => { onClose(); go("courses"); }}><Icon name="cart" size={16} />Ma liste</button>
-          <button className={`${s.btn} ${s.prim}`} disabled={added} onClick={async () => { await day.addEntry({ meal_type: recipe.meal, name: recipe.name, qty: "1 portion", kcal: recipe.kcal, protein: recipe.protein, carbs: recipe.carbs, fat: recipe.fat }); setAdded(true); }}><Icon name={added ? "check" : "plus"} size={16} />{added ? "Ajouté" : "Au journal"}</button>
+          <button className={`${s.btn} ${s.prim}`} disabled={added} onClick={async () => { try { await day.addEntry({ meal_type: recipe.meal, name: recipe.name, qty: "1 portion", kcal: recipe.kcal, protein: recipe.protein, carbs: recipe.carbs, fat: recipe.fat }); setAdded(true); } catch { /* réseau : le bouton reste actif pour réessayer */ } }}><Icon name={added ? "check" : "plus"} size={16} />{added ? "Ajouté" : "Au journal"}</button>
         </div>
 
         {picker && (
@@ -1421,6 +1485,12 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
         <span className={s.ch}>›</span>
       </div>
 
+      <div className={`${s.healthcard} ${s.r} ${s.r5}`} onClick={() => go("histo")} style={{ background: "linear-gradient(120deg,rgba(183,155,255,.1),rgba(255,255,255,.02))", borderColor: "rgba(183,155,255,.22)" }}>
+        <div className={s.ic} style={{ background: "rgba(183,155,255,.14)" }}><Icon name="calendar" /></div>
+        <div><b>Historique &amp; export</b><span>Tous tes jours enregistrés · export CSV complet</span></div>
+        <span className={s.ch}>›</span>
+      </div>
+
       <div className={`${s.healthcard} ${s.r} ${s.r5}`} onClick={() => go("profil")} style={{ background: "linear-gradient(120deg,rgba(201,255,60,.1),rgba(255,255,255,.02))", borderColor: "rgba(201,255,60,.22)" }}>
         <div className={s.ic} style={{ background: "rgba(201,255,60,.14)" }}><Icon name="diamond" /></div>
         <div><b>{fr(myPoints)} points · récompenses</b><span>Voir tes badges et ton niveau</span></div>
@@ -1487,6 +1557,96 @@ function CmpRow({ label, mine, theirs, lead }: { label: string; mine: string; th
       <span className={`${s.cv} ${lead === 1 ? s.win : ""}`}>{mine}</span>
       <span className={`${s.cv} ${lead === 2 ? s.win : ""}`}>{theirs}</span>
     </div>
+  );
+}
+
+/* ---------------- HISTORIQUE & EXPORT (toutes les données, jour par jour) ---------------- */
+const fmtDay = (iso: string) => {
+  const d = new Date(iso + "T12:00:00");
+  const txt = d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+  return txt.charAt(0).toUpperCase() + txt.slice(1);
+};
+
+function HistoryScreen({ back }: { back: () => void }) {
+  const { user } = useAuth();
+  const [days, setDays] = useState<DayHistory[] | null>(null);
+  const [err, setErr] = useState(false);
+  const [open, setOpen] = useState<string | null>(todayISO());
+
+  useEffect(() => {
+    if (!user) return;
+    loadHistory(user.id).then(setDays).catch(() => setErr(true));
+  }, [user]);
+
+  const exportCsv = () => {
+    if (!days || days.length === 0) return;
+    downloadCsv(`bodyup-export-${todayISO()}.csv`, buildHistoryCsv(days));
+  };
+
+  return (
+    <>
+      <div className={`${s.subhead} ${s.r} ${s.r1}`}>
+        <button className={s.backbtn} onClick={back} aria-label="Retour"><Icon name="arrowLeft" size={18} /></button>
+        <div><div className={s.hi}>Jour par jour, depuis le début</div><h2>Historique</h2></div>
+      </div>
+
+      <button className={`${s.savebtn} ${s.r} ${s.r2}`} style={{ marginTop: 4 }} onClick={exportCsv} disabled={!days || days.length === 0}>
+        Exporter toutes mes données (CSV)
+      </button>
+      <div className={s.empty2} style={{ marginBottom: 10 }}>
+        {days ? `${days.length} jour${days.length > 1 ? "s" : ""} enregistré${days.length > 1 ? "s" : ""} · repas, macros, séances, eau, pas, sommeil, poids` : ""}
+      </div>
+
+      {err && <div className={s.scanerr}>Impossible de charger l&apos;historique. Vérifie ta connexion puis réessaie.</div>}
+      {!days && !err && <div className={s.searching}><span className={s.sp} /> Chargement de l&apos;historique…</div>}
+      {days && days.length === 0 && <div className={s.pempty}>Aucune donnée pour l&apos;instant. Tes journées apparaîtront ici dès ton premier repas enregistré.</div>}
+
+      {days?.map((d) => {
+        const isOpen = open === d.date;
+        return (
+          <div key={d.date} className={`${s.meal} ${s.r}`} style={{ cursor: "pointer" }} onClick={() => setOpen(isOpen ? null : d.date)}>
+            <div className={s.mh}>
+              <div className={s.lft}>
+                <div className={s.em} style={{ background: "rgba(183,155,255,.13)" }}>📅</div>
+                <div>
+                  <b>{fmtDay(d.date)}</b>
+                  <span>
+                    {fr(d.kcal)} kcal · {d.entries.length} aliment{d.entries.length > 1 ? "s" : ""}
+                    {d.burned > 0 ? ` · −${fr(d.burned)} brûlées` : ""}
+                    {d.weight != null ? ` · ${d.weight} kg` : ""}
+                  </span>
+                </div>
+              </div>
+              <div className={s.kc} style={{ color: "var(--violet)" }}>{isOpen ? "−" : "+"}</div>
+            </div>
+            {isOpen && (
+              <>
+                <div className={s.fitem}>
+                  <div className={s.nm}>Macros<small>protéines / glucides / lipides</small></div>
+                  <div className={s.c}>{d.protein}g · {d.carbs}g · {d.fat}g</div>
+                </div>
+                <div className={s.fitem}>
+                  <div className={s.nm}>Activité &amp; hydratation<small>eau · pas · sommeil</small></div>
+                  <div className={s.c}>{(d.glasses * 0.25).toFixed(1)} L · {d.steps ? fr(d.steps) : "—"} pas · {d.sleepMin ? `${Math.floor(d.sleepMin / 60)}h${String(d.sleepMin % 60).padStart(2, "0")}` : "—"}</div>
+                </div>
+                {d.entries.map((e, i) => (
+                  <div key={i} className={s.fitem}>
+                    <div className={s.nm}>{e.name}<small>{MEAL_DEFS.find((m) => m.key === e.meal_type)?.name ?? e.meal_type}{e.qty ? ` · ${e.qty}` : ""}</small></div>
+                    <div className={s.c}>{fr(e.kcal)} kcal</div>
+                  </div>
+                ))}
+                {d.workouts.map((w, i) => (
+                  <div key={`w${i}`} className={s.fitem}>
+                    <div className={s.nm}>{w}<small>séance</small></div>
+                    <div className={s.c} style={{ color: "var(--lime)" }}>brûlé</div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        );
+      })}
+    </>
   );
 }
 

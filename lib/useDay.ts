@@ -43,7 +43,8 @@ export function useDay(userId: string | undefined) {
 
   const addEntry = useCallback(async (e: NewFood) => {
     if (!userId) return;
-    await supabase.from("food_entries").insert({ user_id: userId, date, ...e });
+    const { error } = await supabase.from("food_entries").insert({ user_id: userId, date, ...e });
+    if (error) throw new Error("Enregistrement impossible. Vérifie ta connexion puis réessaie.");
     await load();
   }, [userId, date, load]);
 
@@ -61,7 +62,8 @@ export function useDay(userId: string | undefined) {
 
   const addWorkout = useCallback(async (name: string, kcal: number) => {
     if (!userId) return;
-    await supabase.from("workout_logs").insert({ user_id: userId, date, name, kcal });
+    const { error } = await supabase.from("workout_logs").insert({ user_id: userId, date, name, kcal });
+    if (error) throw new Error("Enregistrement impossible. Vérifie ta connexion puis réessaie.");
     await load();
   }, [userId, date, load]);
 
