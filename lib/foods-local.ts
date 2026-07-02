@@ -163,6 +163,65 @@ export const LOCAL_FOODS: LocalFood[] = [
   B("Sangria", 80, 0.1, 7, 0),
 ];
 
+/* ============================================================
+   PORTIONS NATURELLES — « 1 œuf », « 1 tranche », « 1 verre »…
+   Convertit un geste du quotidien en grammes / ml sans balance.
+   ============================================================ */
+export const PORTIONS: Record<string, [string, number][]> = {
+  "Œuf entier": [["1 œuf", 55], ["2 œufs", 110], ["3 œufs", 165]],
+  "Œuf dur": [["1 œuf", 55], ["2 œufs", 110]],
+  "Banane": [["1 petite", 90], ["1 banane", 120], ["1 grande", 150]],
+  "Pomme": [["1 petite", 120], ["1 pomme", 150], ["1 grande", 200]],
+  "Orange": [["1 orange", 130]],
+  "Kiwi": [["1 kiwi", 75]],
+  "Clémentine": [["1 clémentine", 50], ["2 clémentines", 100]],
+  "Avocat": [["½ avocat", 70], ["1 avocat", 140]],
+  "Baguette": [["¼ baguette", 60], ["½ baguette", 125]],
+  "Pain de mie": [["1 tranche", 35], ["2 tranches", 70]],
+  "Pain complet": [["1 tranche", 40], ["2 tranches", 80]],
+  "Biscotte": [["1 biscotte", 10], ["2 biscottes", 20]],
+  "Riz blanc (cuit)": [["½ assiette", 120], ["1 assiette", 200], ["1 grande assiette", 300]],
+  "Pâtes (cuites)": [["½ assiette", 150], ["1 assiette", 250], ["1 grande assiette", 350]],
+  "Yaourt nature": [["1 pot", 125]],
+  "Yaourt grec": [["1 pot", 150]],
+  "Skyr nature": [["1 pot", 150]],
+  "Compote de pomme": [["1 pot", 100]],
+  "Poulet (blanc, cuit)": [["1 petit filet", 100], ["1 filet", 150], ["1 gros filet", 200]],
+  "Saumon (cuit)": [["1 pavé", 130]],
+  "Jambon blanc": [["1 tranche", 45], ["2 tranches", 90]],
+  "Fromage blanc 0%": [["1 bol", 150], ["1 pot", 100]],
+  "Camembert": [["1 part", 30]],
+  "Comté": [["1 part", 30]],
+  "Emmental": [["1 part", 30]],
+  "Beurre": [["1 noisette", 5], ["1 plaquette individuelle", 10]],
+  "Huile d'olive": [["1 c. à café", 5], ["1 c. à soupe", 10]],
+  "Miel": [["1 c. à café", 7], ["1 c. à soupe", 20]],
+  "Confiture": [["1 c. à café", 10], ["1 c. à soupe", 25]],
+  "Pâte à tartiner chocolat": [["1 c. à café", 10], ["1 c. à soupe", 20]],
+  "Chocolat noir 70%": [["1 carré", 10], ["2 carrés", 20]],
+  "Chocolat au lait": [["1 carré", 10], ["2 carrés", 20]],
+  "Croissant": [["1 croissant", 55]],
+  "Pain au chocolat": [["1 pain au chocolat", 65]],
+  "Amande": [["1 poignée", 30]],
+  "Noix": [["1 poignée", 30]],
+  "Cacahuète": [["1 poignée", 30]],
+  "Flocons d'avoine": [["1 bol (40 g)", 40], ["1 grand bol", 60]],
+  "Frites": [["1 petite portion", 150], ["1 portion", 250]],
+  "Pizza margherita": [["1 part", 100], ["½ pizza", 200], ["1 pizza", 400]],
+};
+
+export const GENERIC_PORTIONS_G: [string, number][] = [
+  ["1 c. à soupe", 15], ["1 poignée", 30], ["1 petite assiette", 200], ["1 assiette", 300],
+];
+export const GENERIC_PORTIONS_ML: [string, number][] = [
+  ["1 tasse", 150], ["1 verre", 200], ["1 canette", 330], ["1 bouteille", 500],
+];
+
+/** Portions proposées pour un aliment : spécifiques si connues, sinon génériques. */
+export function portionsFor(name: string, unit?: "g" | "ml"): [string, number][] {
+  return PORTIONS[name] ?? (unit === "ml" ? GENERIC_PORTIONS_ML : GENERIC_PORTIONS_G);
+}
+
 /** Boissons en accès rapide dans la fenêtre d'ajout (quantité par défaut en ml). */
 export const QUICK_DRINKS: { name: string; emoji: string; defaultMl: number }[] = [
   { name: "Eau", emoji: "💧", defaultMl: 250 },

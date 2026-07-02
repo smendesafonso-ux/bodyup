@@ -66,6 +66,32 @@ export async function loadHistory(userId: string): Promise<DayHistory[]> {
   return [...days.values()].sort((a, b) => (a.date < b.date ? 1 : -1)); // plus récent en premier
 }
 
+/** Jours (AAAA-MM-JJ) ayant au moins un repas enregistré, du plus récent au plus ancien. */
+export async function loadEntryDates(userId: string): Promise<string[]> {
+  const { data } = await supabase
+    .from("food_entries")
+    .select("date")
+    .eq("user_id", userId)
+    .order("date", { ascending: false })
+    .limit(1000);
+  return [...new Set(((data ?? []) as { date: string }[]).map((r) => r.date))];
+}
+
+/** Série de jours consécutifs avec au moins un repas, finissant aujourd'hui ou hier. */
+export function computeStreak(dates: string[], today: string): number {
+  const set = new Set(dates);
+  const d = new Date(today + "T12:00:00");
+  const iso = (x: Date) => {
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())}`;
+  };
+  // La série reste valide si la journée en cours n'a simplement pas encore commencé.
+  if (!set.has(iso(d))) d.setDate(d.getDate() - 1);
+  let streak = 0;
+  while (set.has(iso(d))) { streak += 1; d.setDate(d.getDate() - 1); }
+  return streak;
+}
+
 const csvField = (v: string | number | null) => {
   const s = v == null ? "" : String(v);
   return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;

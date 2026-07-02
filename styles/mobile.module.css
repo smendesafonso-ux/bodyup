@@ -624,3 +624,40 @@
 
 .hint{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:50;font-size:12px;color:var(--txt-3);background:rgba(18,23,15,.8);border:1px solid var(--card-bd);padding:8px 16px;border-radius:100px;backdrop-filter:blur(8px)}
 @media(max-width:1080px){.hint{display:none}}
+
+/* ---------- ajout d'aliment : copier hier, portions, nutriments ---------- */
+.copyday{width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;margin-top:10px;border:1.5px dashed var(--card-bd);border-radius:14px;color:var(--txt-2);background:none;font-family:var(--body);font-weight:600;font-size:13.5px;cursor:pointer}
+.copyday:active{background:rgba(201,255,60,.06)}
+.copyday:disabled{opacity:.5}
+.nsmini{flex:0 0 auto;width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:12px;font-weight:800;font-family:var(--display);margin-left:8px}
+.nutriline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--txt-2);background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:9px 12px;margin-bottom:12px}
+.nutriline b{color:var(--txt)}
+.nutriline small{color:var(--txt-3);margin-left:auto}
+.staplechips .chipon{background:rgba(201,255,60,.14);border-color:rgba(201,255,60,.4);color:var(--lime)}
+
+/* ---------- historique : graphiques ---------- */
+.chartcard{background:var(--card);border:1px solid var(--card-bd);border-radius:20px;padding:14px 16px;margin-top:12px}
+.chartlab{font-size:12px;font-weight:700;color:var(--txt-2);margin-bottom:8px}
+.chartlab small{font-weight:500;color:var(--txt-3)}
+.chart{width:100%;height:96px;display:block}
+.avgrow{display:flex;gap:14px;margin-top:9px;font-size:12px;color:var(--txt-2);flex-wrap:wrap}
+.avgrow b{color:var(--txt)}
+
+/* ---------- jeûne intermittent ---------- */
+.fastcard{background:linear-gradient(150deg,rgba(183,155,255,.1),rgba(255,255,255,.02));border:1px solid rgba(183,155,255,.22);border-radius:22px;padding:16px;margin-top:14px}
+.fasthead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.fasthead b{font-family:var(--display);font-weight:600;font-size:15px}
+.fastline{font-size:13px;color:var(--txt-2);margin-bottom:8px}
+.fastline b{font-family:var(--display);font-size:18px;margin-right:4px}
+
+/* ---------- messagerie entre proches ---------- */
+.unreadDot{flex:0 0 auto;min-width:22px;height:22px;border-radius:100px;background:var(--lime);color:#0a1400;display:grid;place-items:center;font-size:12px;font-weight:800;padding:0 6px}
+.daysep{text-align:center;font-size:11px;color:var(--txt-3);margin:10px 0 4px;text-transform:uppercase;letter-spacing:.06em}
+.msgtime{display:block;font-size:10px;color:var(--txt-3);margin-top:4px;text-align:right}
+
+/* ---------- photos de progression ---------- */
+.photogrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:4px}
+.pcell{position:relative;border-radius:14px;overflow:hidden;aspect-ratio:3/4;border:1px solid var(--card-bd)}
+.pcell img{width:100%;height:100%;object-fit:cover;display:block}
+.pdate{position:absolute;left:6px;bottom:6px;font-size:10px;background:rgba(0,0,0,.55);color:#fff;padding:3px 7px;border-radius:8px;backdrop-filter:blur(4px)}
+.pdel{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:8px;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:11px;cursor:pointer;display:grid;place-items:center}

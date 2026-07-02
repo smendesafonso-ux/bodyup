@@ -11,15 +11,19 @@ import { useAuth } from "@/lib/auth";
 import { supabase, todayISO } from "@/lib/supabase";
 import { useDay, type NewFood } from "@/lib/useDay";
 import { searchFoods, searchFoodsInstant, localFoodByName, lookupBarcode, type FoodHit } from "@/lib/foods";
-import { QUICK_DRINKS } from "@/lib/foods-local";
-import { loadHistory, buildHistoryCsv, downloadCsv, type DayHistory } from "@/lib/history";
+import { QUICK_DRINKS, portionsFor } from "@/lib/foods-local";
+import { loadHistory, buildHistoryCsv, downloadCsv, loadEntryDates, computeStreak, type DayHistory } from "@/lib/history";
+import { loadFavorites, addFavorite, removeFavoriteByName, favToHit, loadRecentFoods, loadYesterdayMeal, type FavFood, type RecentFood } from "@/lib/favorites";
+import { FASTING_PROTOCOLS, getActiveFast, startFast, endFast, loadFastHistory, fastElapsedH, type Fast } from "@/lib/fasting";
+import { loadThread, sendMessage, markThreadRead, loadUnreadCounts, subscribeToMessages, type ChatMsg } from "@/lib/chat";
+import { uploadProgressPhoto, loadProgressPhotos, deleteProgressPhoto, type ProgressPhoto } from "@/lib/photos";
 import { analyzeFoodPhoto, type FoodAnalysis } from "@/lib/vision";
 import { suggestMeals, normIngredients, type AiMeal } from "@/lib/meals";
 import { translateTexts } from "@/lib/translate";
 import type { Profile } from "@/lib/supabase";
-import { coachChips, progressTimeline } from "@/lib/data";
+import { coachChips } from "@/lib/data";
 import { askCoach, type CoachMsg } from "@/lib/coach";
-import { notifSupported, notifPermission, requestNotif, showNotif, remindersEnabled, setRemindersEnabled, startReminderLoop } from "@/lib/notifications";
+import { notifSupported, notifPermission, requestNotif, showNotif, remindersEnabled, setRemindersEnabled, startReminderLoop, notifPrefs, setNotifPref, notifyMessage, NOTIF_CATS, type NotifCat } from "@/lib/notifications";
 import { exercises, intensityClass, type Exercise, type Intensity } from "@/lib/exercises";
 import { loadPantry, addPantryItem, addManyToBuy, setPantryStatus, removePantryItem, searchCatalog, STAPLES, type PantryItem } from "@/lib/pantry";
 import { mealCategories, mealsByCategory, mealLookup, type MealLite, type MealFull } from "@/lib/themealdb";
@@ -27,7 +31,7 @@ import { loadConnections, sendInvite, acceptInvite, removeConnection, loadShared
 import { loadStats, computePoints, levelFor, emojiForLevel, persistGamification, BADGES, type Stats } from "@/lib/gamification";
 import { recipes as libRecipes, aiPhoto, shuffleSeeded, ytId, type LibRecipe } from "@/lib/recipes";
 
-type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil" | "courses" | "progress" | "partage" | "histo";
+type Tab = "home" | "journal" | "repas" | "scan" | "exo" | "coach" | "stats" | "profil" | "courses" | "progress" | "partage" | "histo" | "msg";
 type Day = ReturnType<typeof useDay>;
 type MealKey = "petit-dej" | "dejeuner" | "collation" | "diner";
 
@@ -48,11 +52,24 @@ const MEAL_DEFS: { key: MealKey; emoji: string; tint: string; name: string; colo
   { key: "diner", emoji: "🌙", tint: "rgba(183,155,255,.13)", name: "Dîner", color: "var(--violet)" },
 ];
 
-const macroGoals = (target: number) => ({
-  p: Math.round((target * 0.3) / 4),
-  c: Math.round((target * 0.4) / 4),
-  f: Math.round((target * 0.3) / 9),
-});
+// Répartition macros : personnalisable dans Profil (défaut 30 % P / 40 % G / 30 % L).
+const macroGoals = (target: number, profile?: Profile | null) => {
+  const p = profile?.macro_p ?? 30;
+  const c = profile?.macro_c ?? 40;
+  const f = profile?.macro_f ?? 30;
+  return {
+    p: Math.round((target * p) / 100 / 4),
+    c: Math.round((target * c) / 100 / 4),
+    f: Math.round((target * f) / 100 / 9),
+  };
+};
+
+export const MACRO_PRESETS: { label: string; p: number; c: number; f: number }[] = [
+  { label: "Équilibré", p: 30, c: 40, f: 30 },
+  { label: "Protéiné", p: 40, c: 30, f: 30 },
+  { label: "Low-carb", p: 35, c: 25, f: 40 },
+  { label: "Prise de masse", p: 30, c: 45, f: 25 },
+];
 
 const NUTRI_COLOR: Record<string, string> = { a: "#038141", b: "#85BB2F", c: "#FECB02", d: "#EE8100", e: "#E63E11" };
 const NUTRI_TEXT: Record<string, string> = { a: "#fff", b: "#1a2e00", c: "#3a2e00", d: "#fff", e: "#fff" };
@@ -66,8 +83,35 @@ export default function MobileApp() {
   const day = useDay(user?.id);
   const [tab, setTab] = useState<Tab>("home");
   const [addMeal, setAddMeal] = useState<MealKey | null>(null);
-  // Rappels locaux (hydratation, repas, bilan) tant que la PWA tourne.
-  useEffect(() => { const id = startReminderLoop(); return () => clearInterval(id); }, []);
+  const [unread, setUnread] = useState(0);
+  const [chatWith, setChatWith] = useState<{ id: string; name: string } | null>(null);
+
+  // Rappels locaux (hydratation, repas, bilan, journée vide) tant que la PWA tourne.
+  const entriesRef = useRef(0);
+  entriesRef.current = day.entries.length;
+  useEffect(() => { const id = startReminderLoop(() => entriesRef.current > 0); return () => clearInterval(id); }, []);
+
+  // Messages entre proches : compteur de non-lus + notification temps réel.
+  const refreshUnread = useCallback(async () => {
+    if (!user) return;
+    const counts = await loadUnreadCounts(user.id);
+    setUnread(Object.values(counts).reduce((n, x) => n + x, 0));
+  }, [user]);
+  useEffect(() => { refreshUnread(); }, [refreshUnread]);
+  useEffect(() => {
+    if (!user) return;
+    const ch = subscribeToMessages(user.id, async (m) => {
+      refreshUnread();
+      const conns = await loadConnections();
+      const c = conns.find((x) => x.requester_id === m.sender_id || x.addressee_id === m.sender_id);
+      const name = (c?.requester_id === m.sender_id ? c?.requester_username : c?.addressee_username) ?? "un proche";
+      notifyMessage(name, m.body);
+    });
+    const poll = window.setInterval(refreshUnread, 30000); // secours si le temps réel est indisponible
+    return () => { supabase.removeChannel(ch); clearInterval(poll); };
+  }, [user, refreshUnread]);
+
+  const openChat = (friend: { id: string; name: string }) => { setChatWith(friend); setTab("msg"); };
 
   const target = profile?.calorie_target ?? 2000;
 
@@ -102,19 +146,22 @@ export default function MobileApp() {
               {tab === "exo" && <ExoScreen day={day} target={target} />}
               {tab === "coach" && <CoachScreen profile={profile} day={day} target={target} />}
               {tab === "stats" && <StatsScreen profile={profile} day={day} go={setTab} />}
-              {tab === "profil" && <ProfilScreen profile={profile} email={user?.email ?? ""} go={setTab} />}
+              {tab === "profil" && <ProfilScreen profile={profile} email={user?.email ?? ""} go={setTab} unread={unread} />}
               {tab === "courses" && <CoursesScreen back={() => setTab("repas")} />}
-              {tab === "progress" && <ProgressScreen profile={profile} back={() => setTab("stats")} />}
-              {tab === "histo" && <HistoryScreen back={() => setTab("stats")} />}
-              {tab === "partage" && <PartageScreen back={() => setTab("profil")} />}
+              {tab === "progress" && <ProgressScreen back={() => setTab("stats")} />}
+              {tab === "histo" && <HistoryScreen profile={profile} back={() => setTab("stats")} />}
+              {tab === "msg" && <MessagesScreen initial={chatWith} onOpened={refreshUnread} back={() => { setChatWith(null); setTab("profil"); }} />}
+              {tab === "partage" && <PartageScreen back={() => setTab("profil")} onChat={openChat} />}
             </div>
           </div>
 
           {addMeal && (
             <AddFoodSheet
               defaultMeal={addMeal}
+              userId={user?.id}
               onClose={() => setAddMeal(null)}
               onSave={async (food) => { await day.addEntry(food); setAddMeal(null); setTab("journal"); }}
+              onSaveMany={async (foods) => { for (const f of foods) await day.addEntry(f); setAddMeal(null); setTab("journal"); }}
             />
           )}
 
@@ -155,11 +202,19 @@ function StatusBar() {
 
 /* ---------------- ACCUEIL ---------------- */
 function HomeScreen({ profile, day, target, onAvatar }: { profile: Profile | null; day: Day; target: number; onAvatar: () => void }) {
+  const { user } = useAuth();
   const remaining = target - day.consumed + day.burned;
-  const goals = macroGoals(target);
+  const goals = macroGoals(target, profile);
   const name = profile?.display_name ?? "toi";
   const initials = (name[0] ?? "?").toUpperCase();
   const pct = (v: number, g: number) => Math.min(Math.round((v / g) * 100), 100);
+
+  // Série de jours consécutifs avec au moins un repas enregistré (streak).
+  const [streak, setStreak] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    loadEntryDates(user.id).then((d) => setStreak(computeStreak(d, todayISO()))).catch(() => {});
+  }, [user, day.entries.length]);
 
   return (
     <>
@@ -167,7 +222,10 @@ function HomeScreen({ profile, day, target, onAvatar }: { profile: Profile | nul
         <div>
           <div className={s.hi}>Bonjour</div>
           <h2>{name}</h2>
-          <span className={s.flame}><Icon name="flame" size={14} /> {day.consumed > 0 ? "Journée en cours" : "Commence ta journée"}</span>
+          <span className={s.flame}>
+            <Icon name="flame" size={14} />{" "}
+            {streak >= 2 ? `Série : ${streak} jours d'affilée` : day.consumed > 0 ? "Journée en cours" : "Commence ta journée"}
+          </span>
         </div>
         <button className={s.ava} onClick={onAvatar} style={{ cursor: "pointer", border: "1px solid var(--card-bd)" }}>{initials}</button>
       </div>
@@ -204,6 +262,8 @@ function HomeScreen({ profile, day, target, onAvatar }: { profile: Profile | nul
         <button className={s.addw} onClick={() => day.setWater(1)}>+</button>
       </div>
 
+      <FastingCard userId={user?.id} />
+
       <div className={`${s.sectionH} ${s.r} ${s.r6}`}><h3>Analyse IA</h3></div>
       <div className={`${s.insight} ${s.r} ${s.r6}`}>
         <div className={s.orb}><Icon name="spark" size={20} /></div>
@@ -239,6 +299,83 @@ function Metric({ icon, tint, color, trend, v, unit, k }: { icon: IconName; tint
       <div className={s.v}>{v}<small>{unit}</small></div>
       <div className={s.k}>{k}</div>
     </div>
+  );
+}
+
+/* ---------------- JEÛNE INTERMITTENT (carte accueil) ---------------- */
+function FastingCard({ userId }: { userId?: string }) {
+  const [fast, setFast] = useState<Fast | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [doneCount, setDoneCount] = useState(0);
+  const [err, setErr] = useState<string | null>(null);
+  const [, forceTick] = useState(0);
+
+  useEffect(() => {
+    if (!userId) return;
+    getActiveFast(userId).then(setFast).catch(() => {});
+    loadFastHistory(userId).then((h) => setDoneCount(h.length)).catch(() => {});
+  }, [userId]);
+  // rafraîchit le chrono chaque minute
+  useEffect(() => {
+    if (!fast) return;
+    const id = setInterval(() => forceTick((x) => x + 1), 60000);
+    return () => clearInterval(id);
+  }, [fast]);
+
+  const begin = async (hours: number) => {
+    if (!userId) return;
+    setErr(null); setPickerOpen(false);
+    try { setFast(await startFast(userId, hours)); } catch (x) { setErr(x instanceof Error ? x.message : "Erreur"); }
+  };
+  const stop = async () => {
+    if (!fast) return;
+    await endFast(fast.id);
+    setFast(null); setDoneCount((c) => c + 1);
+  };
+
+  const elapsed = fast ? fastElapsedH(fast) : 0;
+  const hh = Math.floor(elapsed);
+  const mm = Math.floor((elapsed - hh) * 60);
+  const pct = fast ? Math.min((elapsed / fast.target_h) * 100, 100) : 0;
+  const reached = fast != null && elapsed >= fast.target_h;
+
+  return (
+    <>
+      <div className={`${s.fastcard} ${s.r} ${s.r5}`}>
+        <div className={s.fasthead}>
+          <b>⏳ Jeûne intermittent</b>
+          {fast
+            ? <button className={s.wlog} style={{ background: "var(--card)", color: "var(--txt-2)" }} onClick={stop}>{reached ? "Terminer ✓" : "Arrêter"}</button>
+            : <button className={s.wlog} onClick={() => setPickerOpen(true)}>Démarrer</button>}
+        </div>
+        {fast ? (
+          <>
+            <div className={s.fastline}>
+              <b style={{ color: reached ? "var(--lime)" : "var(--txt)" }}>{hh}h{String(mm).padStart(2, "0")}</b>
+              <span> / {fast.target_h} h {reached ? "— objectif atteint 🎉" : ""}</span>
+            </div>
+            <div className={s.bar}><i style={{ width: `${pct}%`, background: reached ? "var(--lime)" : "var(--violet)" }} /></div>
+          </>
+        ) : (
+          <div className={s.fastline}><span>{doneCount > 0 ? `${doneCount} jeûne${doneCount > 1 ? "s" : ""} terminé${doneCount > 1 ? "s" : ""} · prêt pour le prochain ?` : "16:8, 14:10 ou 18:6 — choisis ton protocole."}</span></div>
+        )}
+        {err && <div className={s.scanerr} style={{ margin: "8px 0 0" }}>{err}</div>}
+      </div>
+
+      {pickerOpen && (
+        <Modal center onClose={() => setPickerOpen(false)}>
+            <h3>Démarrer un jeûne <span className={s.x} onClick={() => setPickerOpen(false)}>✕</span></h3>
+            {FASTING_PROTOCOLS.map((p) => (
+              <div key={p.label} className={s.connrow} style={{ cursor: "pointer" }} onClick={() => begin(p.hours)}>
+                <div className={s.av2}>{p.label.split(":")[0]}h</div>
+                <div className={s.ce}><b>{p.label}</b><span>{p.desc}</span></div>
+                <span className={s.ch}>›</span>
+              </div>
+            ))}
+            <div className={s.empty2}>Le chrono démarre maintenant — l&apos;app t&apos;indique quand l&apos;objectif est atteint.</div>
+        </Modal>
+      )}
+    </>
   );
 }
 
@@ -283,7 +420,10 @@ function JournalScreen({ day, onAdd }: { day: Day; onAdd: (m: MealKey) => void }
 }
 
 /* ---------------- AJOUT D'ALIMENT (modal) ---------------- */
-function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; onClose: () => void; onSave: (f: NewFood) => Promise<void> }) {
+function AddFoodSheet({ defaultMeal, userId, onClose, onSave, onSaveMany }: {
+  defaultMeal: MealKey; userId?: string; onClose: () => void;
+  onSave: (f: NewFood) => Promise<void>; onSaveMany: (fs: NewFood[]) => Promise<void>;
+}) {
   const [meal, setMeal] = useState<MealKey>(defaultMeal);
   const [mode, setMode] = useState<"search" | "manual">("search");
   const [busy, setBusy] = useState(false);
@@ -295,6 +435,21 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
   const [sel, setSel] = useState<FoodHit | null>(null);
   const [grams, setGrams] = useState("100");
   const reqId = useRef(0);
+
+  // favoris & récents (saisie en 1 geste)
+  const [favs, setFavs] = useState<FavFood[]>([]);
+  const [recents, setRecents] = useState<RecentFood[]>([]);
+  const [isFav, setIsFav] = useState(false);
+  useEffect(() => {
+    if (!userId) return;
+    loadFavorites(userId).then(setFavs).catch(() => {});
+    loadRecentFoods(userId).then(setRecents).catch(() => {});
+  }, [userId]);
+  const toggleFav = async () => {
+    if (!userId || !sel) return;
+    if (isFav) { setIsFav(false); await removeFavoriteByName(userId, sel.name); setFavs((p) => p.filter((f) => f.name !== sel.name)); }
+    else { setIsFav(true); await addFavorite(userId, sel); loadFavorites(userId).then(setFavs).catch(() => {}); }
+  };
 
   // saisie manuelle
   const [name, setName] = useState("");
@@ -319,12 +474,37 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
     return () => clearTimeout(t);
   }, [query, sel]);
 
-  const pick = (r: FoodHit) => { setSel(r); setResults([]); setGrams(r.unit === "ml" ? "250" : "100"); };
+  const pick = (r: FoodHit) => { setSel(r); setIsFav(favs.some((f) => f.name === r.name)); setResults([]); setGrams(r.unit === "ml" ? "250" : "100"); };
   const pickDrink = (name: string, ml: number) => {
     const hit = localFoodByName(name);
-    if (hit) { setSel(hit); setResults([]); setQuery(""); setGrams(String(ml)); }
+    if (hit) { setSel(hit); setIsFav(favs.some((f) => f.name === hit.name)); setResults([]); setQuery(""); setGrams(String(ml)); }
   };
   const unitLabel = sel?.unit === "ml" ? "ml" : "grammes";
+
+  // Ajout direct d'un aliment récent (mêmes quantités que la dernière fois)
+  const [saveErr, setSaveErr] = useState<string | null>(null);
+  const quickAdd = async (r: RecentFood) => {
+    setBusy(true); setSaveErr(null);
+    try {
+      await onSave({ meal_type: meal, name: r.name, qty: r.qty, kcal: r.kcal, protein: r.protein, carbs: r.carbs, fat: r.fat });
+    } catch (x) {
+      setSaveErr(x instanceof Error ? x.message : "Enregistrement impossible. Réessaie.");
+    } finally { setBusy(false); }
+  };
+
+  // Recopie le même repas qu'hier (ex : petit-déj identique tous les matins)
+  const [copying, setCopying] = useState(false);
+  const copyYesterday = async () => {
+    if (!userId || copying) return;
+    setCopying(true); setSaveErr(null);
+    try {
+      const rows = await loadYesterdayMeal(userId, meal);
+      if (rows.length === 0) { setSaveErr("Rien d'enregistré hier pour ce repas."); return; }
+      await onSaveMany(rows.map((r) => ({ ...r, meal_type: meal })));
+    } catch (x) {
+      setSaveErr(x instanceof Error ? x.message : "Copie impossible. Réessaie.");
+    } finally { setCopying(false); }
+  };
 
   const g = parseFloat(grams) || 0;
   const factor = g / 100;
@@ -335,7 +515,6 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
     f: Math.round(sel.f100 * factor),
   } : null;
 
-  const [saveErr, setSaveErr] = useState<string | null>(null);
   const saveSearch = async () => {
     if (!sel || !calc || g <= 0) return;
     setBusy(true); setSaveErr(null);
@@ -382,12 +561,42 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
                 <input className={s.inp} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Ex : poulet, banane, coca, Nutella…" autoFocus />
                 {query.trim().length < 2 && (
                   <>
+                    <button className={s.copyday} onClick={copyYesterday} disabled={copying || busy}>
+                      <Icon name="refresh" size={15} /> {copying ? "Copie…" : "Recopier le repas d'hier"}
+                    </button>
+                    {favs.length > 0 && (
+                      <>
+                        <div className={s.eflabel} style={{ marginTop: 12 }}>⭐ Favoris</div>
+                        <div className={s.results}>
+                          {favs.slice(0, 8).map((f) => (
+                            <div key={f.id} className={s.ritem} onClick={() => pick(favToHit(f))}>
+                              <div className={s.rn}><b>{f.name}</b><span>{f.kcal100} kcal / 100 {f.unit}</span></div>
+                              <span className={s.srcbadge} style={{ color: "var(--amber)", borderColor: "rgba(255,194,75,.35)" }}>★</span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                    {recents.length > 0 && (
+                      <>
+                        <div className={s.eflabel} style={{ marginTop: 12 }}>🕐 Récents — ajout en 1 clic</div>
+                        <div className={s.results}>
+                          {recents.map((r) => (
+                            <div key={r.name} className={s.ritem} onClick={() => quickAdd(r)}>
+                              <div className={s.rn}><b>{r.name}</b><span>{r.qty ? `${r.qty} · ` : ""}{r.kcal} kcal{r.count > 1 ? ` · ×${r.count}` : ""}</span></div>
+                              <Icon name="plus" size={16} />
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
                     <div className={s.eflabel} style={{ marginTop: 12 }}>Boissons rapides</div>
                     <div className={s.staplechips}>
                       {QUICK_DRINKS.map((d) => (
                         <span key={d.name} onClick={() => pickDrink(d.name, d.defaultMl)}>{d.emoji} {d.name}</span>
                       ))}
                     </div>
+                    {saveErr && <div className={s.scanerr} style={{ margin: "10px 0 0" }}>{saveErr}</div>}
                   </>
                 )}
                 {results.length > 0 && (
@@ -398,6 +607,7 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
                           <b>{r.name}</b>
                           <span>{r.brand ? `${r.brand} · ` : ""}{r.kcal100} kcal / 100 {r.unit ?? "g"}</span>
                         </div>
+                        {r.nutriscore && <span className={s.nsmini} style={{ background: NUTRI_COLOR[r.nutriscore], color: NUTRI_TEXT[r.nutriscore] }}>{r.nutriscore.toUpperCase()}</span>}
                         <span className={`${s.srcbadge} ${r.source === "base" ? s.srcbase : s.srcoff}`}>{r.source === "base" ? "BODYUP" : "OFF"}</span>
                       </div>
                     ))}
@@ -414,6 +624,9 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
               <>
                 <div className={s.selfood}>
                   <div className={s.sn}><b>{sel.name}</b><span>{sel.brand ? `${sel.brand} · ` : ""}{sel.kcal100} kcal / 100 {sel.unit ?? "g"}</span></div>
+                  {userId && (
+                    <button className={s.clear} onClick={toggleFav} aria-label="Favori" style={{ color: isFav ? "var(--amber)" : "var(--txt-3)", fontSize: 16 }}>{isFav ? "★" : "☆"}</button>
+                  )}
                   <button className={s.clear} onClick={() => { setSel(null); setGrams("100"); }} aria-label="Changer">✕</button>
                 </div>
                 <label>Quantité</label>
@@ -421,12 +634,26 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
                   <input className={s.inp} type="number" inputMode="numeric" value={grams} onChange={(e) => setGrams(e.target.value)} />
                   <span className={s.u}>{unitLabel}</span>
                 </div>
+                <div className={s.staplechips} style={{ marginBottom: 12 }}>
+                  {portionsFor(sel.name, sel.unit).map(([label, pg]) => (
+                    <span key={label} className={g === pg ? s.chipon : ""} onClick={() => setGrams(String(pg))}>{label}</span>
+                  ))}
+                </div>
                 <div className={s.calcprev}>
                   <div><b>{calc.kcal}</b><span>kcal</span></div>
                   <div><b>{calc.p}g</b><span>prot</span></div>
                   <div><b>{calc.c}g</b><span>gluc</span></div>
                   <div><b>{calc.f}g</b><span>lip</span></div>
                 </div>
+                {(sel.nutriscore || sel.sugars100 != null || sel.fiber100 != null || sel.salt100 != null) && (
+                  <div className={s.nutriline}>
+                    {sel.nutriscore && <span className={s.nsmini} style={{ background: NUTRI_COLOR[sel.nutriscore], color: NUTRI_TEXT[sel.nutriscore] }}>{sel.nutriscore.toUpperCase()}</span>}
+                    {sel.sugars100 != null && <span>Sucres <b>{sel.sugars100} g</b></span>}
+                    {sel.fiber100 != null && <span>Fibres <b>{sel.fiber100} g</b></span>}
+                    {sel.salt100 != null && <span>Sel <b>{sel.salt100} g</b></span>}
+                    <small>/ 100 {sel.unit ?? "g"}</small>
+                  </div>
+                )}
                 {saveErr && <div className={s.scanerr} style={{ margin: "10px 0 0" }}>{saveErr}</div>}
                 <button className={s.savebtn} onClick={saveSearch} disabled={busy || g <= 0}>{busy ? "Ajout…" : "Ajouter au journal"}</button>
               </>
@@ -892,7 +1119,7 @@ function RepasScreen({ day, profile, target, go }: { day: Day; profile: Profile 
     if (user) loadPantry(user.id).then((items) => setPantry(items.filter((i) => i.status === "have").map((i) => i.name)));
   }, [user]);
 
-  const goals = macroGoals(target);
+  const goals = macroGoals(target, profile);
 
   const addMeal = async (m: AiMeal) => {
     try {
@@ -1283,8 +1510,9 @@ function LibRecipeModal({ recipe, pantry, userId, myUsername, friends, day, go, 
   );
 }
 
-/* ---------------- COACH IA (démo) ---------------- */
+/* ---------------- COACH IA ---------------- */
 function CoachScreen({ profile, day, target }: { profile: Profile | null; day: Day; target: number }) {
+  const { user } = useAuth();
   const first = profile?.display_name ? profile.display_name.split(" ")[0] : "";
   const [messages, setMessages] = useState<{ from: "ai" | "me"; text: string }[]>([
     { from: "ai", text: `Salut ${first} 👋 Je suis ton coach BODYUP. Pose-moi tes questions sur ta nutrition, tes objectifs ou tes entraînements — je connais tes stats du jour et je m'adapte à toi.` },
@@ -1316,11 +1544,26 @@ function CoachScreen({ profile, day, target }: { profile: Profile | null; day: D
     }
   };
 
+  // Bilan hebdomadaire : injecte les 7 derniers jours dans la question au coach.
+  const weeklyReview = async () => {
+    if (!user || busy) return;
+    setBusy(true);
+    let lines = "";
+    try {
+      const days = (await loadHistory(user.id)).slice(0, 7).reverse();
+      lines = days
+        .map((d) => `${d.date} : ${d.kcal} kcal (P${d.protein}/G${d.carbs}/L${d.fat}), brûlé ${d.burned} kcal, eau ${(d.glasses * 0.25).toFixed(1)} L, ${d.steps || 0} pas${d.weight != null ? `, poids ${d.weight} kg` : ""}`)
+        .join("\n");
+    } catch { /* le coach fera sans le détail */ } finally { setBusy(false); }
+    await send(`Fais-moi le bilan de ma semaine : ce qui va, ce qui doit s'améliorer, et 3 conseils concrets pour la semaine prochaine.\n\nMes 7 derniers jours :\n${lines || "(données indisponibles)"}`);
+  };
+
   return (
     <>
       <div className={`${s.coachhead} ${s.r} ${s.r1}`}>
         <div className={s.orb}><Icon name="spark" size={24} /></div>
         <div><b>Coach BODYUP</b><span className={s.on}><i />En ligne · 24h/24</span></div>
+        <button className={s.headact} onClick={weeklyReview} disabled={busy} aria-label="Bilan de la semaine" title="Bilan de la semaine"><Icon name="stats" /></button>
       </div>
       <div className={s.chat} ref={scroller}>
         {messages.map((m, i) => (
@@ -1329,6 +1572,7 @@ function CoachScreen({ profile, day, target }: { profile: Profile | null; day: D
         {busy && <div className={`${s.bub} ${s.ai}`}><span className={s.typing}><i /><i /><i /></span></div>}
         {messages.length <= 1 && (
           <div className={s.chips}>
+            <span className={s.chip} style={{ borderColor: "rgba(201,255,60,.4)", color: "var(--lime)" }} onClick={weeklyReview}>📊 Bilan de ma semaine</span>
             {coachChips.map((c) => <span key={c} className={s.chip} onClick={() => send(c)}>{c}</span>)}
           </div>
         )}
@@ -1342,6 +1586,19 @@ function CoachScreen({ profile, day, target }: { profile: Profile | null; day: D
 }
 
 /* ---------------- STATS (données réelles) ---------------- */
+/** Aperçu agrégé d'un proche, renvoyé par la fonction SQL connected_overview. */
+interface CmpOverview {
+  points?: number;
+  categories?: string[];
+  weight_start?: number | string | null;
+  weight_current?: number | string | null;
+  target_kg?: number | string | null;
+  steps?: number;
+  sleep_min?: number;
+  glasses?: number;
+  goals_met?: number;
+}
+
 function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; go: (t: Tab) => void }) {
   const { user, refreshProfile } = useAuth();
   const [weights, setWeights] = useState<{ date: string; weight_kg: number }[]>([]);
@@ -1354,9 +1611,8 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
   const [conns, setConns] = useState<Connection[]>([]);
   const [picker, setPicker] = useState(false);
   const [compare, setCompare] = useState<{ name: string; cats: ShareCat[] } | null>(null);
-  const [other, setOther] = useState<SharedData | null>(null);
+  const [ov, setOv] = useState<CmpOverview | null>(null);
   const [myPoints, setMyPoints] = useState(0);
-  const [otherPoints, setOtherPoints] = useState(0);
 
   useEffect(() => { loadConnections().then((cs) => setConns(cs.filter((c) => c.status === "accepted"))); }, []);
   useEffect(() => { if (user) loadStats(user.id).then((st) => { const p = computePoints(st); setMyPoints(p); persistGamification(user.id, p, levelFor(p)); }); }, [user]);
@@ -1365,10 +1621,14 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
     const oid = c.requester_id === user?.id ? c.addressee_id : c.requester_id;
     const name = (c.requester_id === user?.id ? c.addressee_username : c.requester_username) ?? "?";
     const tc = (c.requester_id === user?.id ? c.addressee_categories : c.requester_categories) as ShareCat[];
-    setCompare({ name, cats: tc }); setOther(null);
-    const { data: pts } = await supabase.rpc("connected_points", { other: oid });
-    setOtherPoints((pts as number) ?? 0);
-    setOther(await loadSharedData(oid));
+    setCompare({ name, cats: tc }); setOv(null);
+    const { data } = await supabase.rpc("connected_overview", { other: oid, d: todayISO() });
+    if (data) setOv(data as CmpOverview);
+    else {
+      // repli si update_v2.sql n'est pas encore exécuté : points seuls
+      const { data: pts } = await supabase.rpc("connected_points", { other: oid });
+      setOv({ points: (pts as number) ?? 0 });
+    }
   };
 
   const fmtSleep = (m: number) => (m > 0 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}` : "—");
@@ -1394,10 +1654,26 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
   const pts = ws.map((w, i) => { const x = ws.length > 1 ? (i / (ws.length - 1)) * 100 : 50; const y = 92 - ((w - min) / range) * 84; return `${x.toFixed(1)},${y.toFixed(1)}`; }).join(" ");
 
   const myEvol = ws.length >= 2 ? ((ws[0] - ws[ws.length - 1]) / ws[0]) * 100 : null;
-  const ow = other ? other.weights.map((w) => Number(w.weight_kg)) : [];
-  const theirEvol = ow.length >= 2 ? ((ow[0] - ow[ow.length - 1]) / ow[0]) * 100 : null;
+  const theirEvol = ov?.weight_start != null && ov?.weight_current != null && Number(ov.weight_start) !== 0
+    ? ((Number(ov.weight_start) - Number(ov.weight_current)) / Number(ov.weight_start)) * 100 : null;
   const fmtEvol = (v: number | null) => (v == null ? "—" : `${v >= 0 ? "−" : "+"}${Math.abs(v).toFixed(1)}%`);
   const lead = (a: number | null, b: number | null): 0 | 1 | 2 => (a == null || b == null ? 0 : a > b ? 1 : b > a ? 2 : 0);
+
+  // % d'avancement vers l'objectif poids : 0 % au départ, 100 % à la cible.
+  const progressPct = (start: number | null, cur: number | null, tgt: number | null): number | null => {
+    if (start == null || cur == null || tgt == null || start === tgt) return null;
+    return Math.max(0, Math.min(100, Math.round(((start - cur) / (start - tgt)) * 100)));
+  };
+  const myProgress = progressPct(startW, currentW, profile?.target_kg ?? null);
+  const theirProgress = ov ? progressPct(
+    ov.weight_start != null ? Number(ov.weight_start) : null,
+    ov.weight_current != null ? Number(ov.weight_current) : null,
+    ov.target_kg != null ? Number(ov.target_kg) : null
+  ) : null;
+
+  // objectifs du jour atteints (mêmes règles des deux côtés : pas ≥ 8000, eau ≥ 2 L, calories dans l'objectif)
+  const myGoalsMet = (day.steps >= 8000 ? 1 : 0) + (day.glasses >= 8 ? 1 : 0) + (day.consumed > 0 && day.consumed <= target ? 1 : 0);
+  const fmtSleepCmp = (m: number | null | undefined) => (m && m > 0 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}` : "—");
 
   const saveWeight = async () => {
     const v = parseFloat(wval);
@@ -1438,20 +1714,33 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
         )}
       </div>
 
-      {compare && other && (
+      {compare && ov && (
         <div className={`${s.kpibig} ${s.r} ${s.r2}`} style={{ background: "linear-gradient(165deg,rgba(183,155,255,.12),rgba(255,255,255,.02))", borderColor: "rgba(183,155,255,.25)" }}>
           <div className={s.wsum}>
             <div className={s.l}>Défi avec <b style={{ color: "var(--violet)" }}>{compare.name}</b></div>
-            <button className={s.wlog} style={{ background: "var(--card)", color: "var(--txt-2)" }} onClick={() => { setCompare(null); setOther(null); }}>Fermer</button>
+            <button className={s.wlog} style={{ background: "var(--card)", color: "var(--txt-2)" }} onClick={() => { setCompare(null); setOv(null); }}>Fermer</button>
           </div>
           <div className={s.cmpgrid}>
             <div className={s.cmphead}><span /><span>Moi</span><span>{compare.name}</span></div>
-            <CmpRow label="Points" mine={fr(myPoints)} theirs={fr(otherPoints)} lead={lead(myPoints, otherPoints)} />
-            {compare.cats.includes("poids") && <CmpRow label="Évolution poids" mine={fmtEvol(myEvol)} theirs={fmtEvol(theirEvol)} lead={lead(myEvol, theirEvol)} />}
-            {compare.cats.includes("pas") && <CmpRow label="Pas aujourd'hui" mine={fr(day.steps)} theirs={fr(other.steps)} lead={lead(day.steps, other.steps)} />}
-            {compare.cats.includes("pas") && <CmpRow label="Sommeil" mine={fmtSleep(day.sleepMin)} theirs={fmtSleep(other.sleepMin)} lead={lead(day.sleepMin, other.sleepMin)} />}
+            <CmpRow label="Points" mine={fr(myPoints)} theirs={fr(ov.points ?? 0)} lead={lead(myPoints, ov.points ?? 0)} />
+            {compare.cats.includes("poids") && (
+              <>
+                <CmpRow label="Avancement objectif" mine={myProgress != null ? `${myProgress} %` : "—"} theirs={theirProgress != null ? `${theirProgress} %` : "—"} lead={lead(myProgress, theirProgress)} />
+                <CmpRow label="Évolution poids" mine={fmtEvol(myEvol)} theirs={fmtEvol(theirEvol)} lead={lead(myEvol, theirEvol)} />
+                <CmpRow label="Poids actuel" mine={currentW != null ? `${currentW} kg` : "—"} theirs={ov.weight_current != null ? `${Number(ov.weight_current)} kg` : "—"} lead={0} />
+              </>
+            )}
+            {compare.cats.includes("pas") && (
+              <>
+                <CmpRow label="Pas aujourd'hui" mine={fr(day.steps)} theirs={fr(ov.steps ?? 0)} lead={lead(day.steps, ov.steps ?? 0)} />
+                <CmpRow label="Sommeil" mine={fmtSleep(day.sleepMin)} theirs={fmtSleepCmp(ov.sleep_min)} lead={lead(day.sleepMin, ov.sleep_min ?? 0)} />
+                <CmpRow label="Eau aujourd'hui" mine={`${(day.glasses * 0.25).toFixed(1)} L`} theirs={`${(((ov.glasses ?? 0)) * 0.25).toFixed(1)} L`} lead={lead(day.glasses, ov.glasses ?? 0)} />
+                <CmpRow label="Objectifs du jour" mine={`${myGoalsMet}/3`} theirs={`${ov.goals_met ?? 0}/3`} lead={lead(myGoalsMet, ov.goals_met ?? 0)} />
+              </>
+            )}
             {!compare.cats.includes("poids") && !compare.cats.includes("pas") && <div className={s.pempty}>Cette personne ne partage pas de KPI comparables.</div>}
           </div>
+          {compare.cats.includes("pas") && <div className={s.empty2} style={{ marginTop: 8 }}>Objectifs du jour : ≥ 8 000 pas · ≥ 2 L d&apos;eau · calories dans l&apos;objectif.</div>}
         </div>
       )}
 
@@ -1548,11 +1837,60 @@ const fmtDay = (iso: string) => {
   return txt.charAt(0).toUpperCase() + txt.slice(1);
 };
 
-function HistoryScreen({ back }: { back: () => void }) {
+const lastNDays = (n: number): string[] => {
+  const out: string[] = [];
+  const d = new Date(todayISO() + "T12:00:00");
+  const p = (x: number) => String(x).padStart(2, "0");
+  for (let i = 0; i < n; i++) {
+    out.unshift(`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`);
+    d.setDate(d.getDate() - 1);
+  }
+  return out;
+};
+
+/** Barres calories/jour avec ligne d'objectif. */
+function KcalChart({ days, period, target }: { days: DayHistory[]; period: number; target: number }) {
+  const byDate = new Map(days.map((d) => [d.date, d]));
+  const dates = lastNDays(period);
+  const vals = dates.map((dt) => byDate.get(dt)?.kcal ?? 0);
+  const max = Math.max(...vals, target) * 1.1 || 1;
+  const W = 100, H = 42;
+  const bw = W / dates.length;
+  const yT = H - (target / max) * H;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className={s.chart}>
+      {vals.map((v, i) => {
+        const h = (v / max) * H;
+        const over = target > 0 && v > target;
+        return <rect key={i} x={i * bw + bw * 0.15} y={H - h} width={bw * 0.7} height={Math.max(h, v > 0 ? 0.8 : 0)} rx={0.6} fill={over ? "var(--coral)" : "var(--lime)"} opacity={v > 0 ? 0.9 : 0} />;
+      })}
+      {target > 0 && <line x1="0" x2={W} y1={yT} y2={yT} stroke="var(--txt-3)" strokeWidth="0.4" strokeDasharray="1.5 1.5" />}
+    </svg>
+  );
+}
+
+/** Courbe de poids sur la période. */
+function WeightChart({ days, period }: { days: DayHistory[]; period: number }) {
+  const dates = new Set(lastNDays(period));
+  const pts = days.filter((d) => d.weight != null && dates.has(d.date)).sort((a, b) => (a.date < b.date ? -1 : 1));
+  if (pts.length < 2) return <div className={s.empty2}>Enregistre ton poids régulièrement pour voir la courbe ici.</div>;
+  const ws = pts.map((p) => p.weight as number);
+  const min = Math.min(...ws), max = Math.max(...ws), range = max - min || 1;
+  const W = 100, H = 42;
+  const line = pts.map((p, i) => `${(i / (pts.length - 1)) * W},${H - 4 - ((p.weight! - min) / range) * (H - 8)}`).join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className={s.chart}>
+      <polyline points={line} fill="none" stroke="var(--sky)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+function HistoryScreen({ profile, back }: { profile: Profile | null; back: () => void }) {
   const { user } = useAuth();
   const [days, setDays] = useState<DayHistory[] | null>(null);
   const [err, setErr] = useState(false);
   const [open, setOpen] = useState<string | null>(todayISO());
+  const [period, setPeriod] = useState<7 | 30 | 90>(7);
 
   useEffect(() => {
     if (!user) return;
@@ -1564,6 +1902,11 @@ function HistoryScreen({ back }: { back: () => void }) {
     downloadCsv(`bodyup-export-${todayISO()}.csv`, buildHistoryCsv(days));
   };
 
+  const target = profile?.calorie_target ?? 0;
+  const inPeriod = (days ?? []).filter((d) => new Set(lastNDays(period)).has(d.date));
+  const withFood = inPeriod.filter((d) => d.entries.length > 0);
+  const avg = (f: (d: DayHistory) => number) => (withFood.length ? Math.round(withFood.reduce((n, d) => n + f(d), 0) / withFood.length) : 0);
+
   return (
     <>
       <div className={`${s.subhead} ${s.r} ${s.r1}`}>
@@ -1571,7 +1914,32 @@ function HistoryScreen({ back }: { back: () => void }) {
         <div><div className={s.hi}>Jour par jour, depuis le début</div><h2>Historique</h2></div>
       </div>
 
-      <button className={`${s.savebtn} ${s.r} ${s.r2}`} style={{ marginTop: 4 }} onClick={exportCsv} disabled={!days || days.length === 0}>
+      <div className={`${s.pseg} ${s.r} ${s.r1}`}>
+        {([7, 30, 90] as const).map((p) => (
+          <button key={p} className={period === p ? s.on : ""} onClick={() => setPeriod(p)}>{p} jours</button>
+        ))}
+      </div>
+
+      {days && days.length > 0 && (
+        <>
+          <div className={`${s.chartcard} ${s.r} ${s.r2}`}>
+            <div className={s.chartlab}>Calories / jour <small>— pointillés : objectif {target ? fr(target) : "—"} kcal</small></div>
+            <KcalChart days={days} period={period} target={target} />
+            <div className={s.avgrow}>
+              <span>Moy. <b>{fr(avg((d) => d.kcal))}</b> kcal</span>
+              <span>P <b>{avg((d) => d.protein)}g</b></span>
+              <span>G <b>{avg((d) => d.carbs)}g</b></span>
+              <span>L <b>{avg((d) => d.fat)}g</b></span>
+            </div>
+          </div>
+          <div className={`${s.chartcard} ${s.r} ${s.r2}`}>
+            <div className={s.chartlab}>Poids (kg)</div>
+            <WeightChart days={days} period={period} />
+          </div>
+        </>
+      )}
+
+      <button className={`${s.savebtn} ${s.r} ${s.r2}`} style={{ marginTop: 12 }} onClick={exportCsv} disabled={!days || days.length === 0}>
         Exporter toutes mes données (CSV)
       </button>
       <div className={s.empty2} style={{ marginBottom: 10 }}>
@@ -1631,22 +1999,155 @@ function HistoryScreen({ back }: { back: () => void }) {
   );
 }
 
+/* ---------------- MESSAGES ENTRE PROCHES (chat) ---------------- */
+function MessagesScreen({ initial, onOpened, back }: { initial: { id: string; name: string } | null; onOpened: () => void; back: () => void }) {
+  const { user } = useAuth();
+  const me = user?.id ?? "";
+  const [friends, setFriends] = useState<{ id: string; name: string }[]>([]);
+  const [unread, setUnread] = useState<Record<string, number>>({});
+  const [active, setActive] = useState<{ id: string; name: string } | null>(initial);
+  const [msgs, setMsgs] = useState<ChatMsg[]>([]);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const scroller = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!me) return;
+    loadConnections().then((cs) => {
+      setFriends(cs.filter((c) => c.status === "accepted").map((c) => ({
+        id: c.requester_id === me ? c.addressee_id : c.requester_id,
+        name: (c.requester_id === me ? c.addressee_username : c.requester_username) ?? "?",
+      })));
+    });
+    loadUnreadCounts(me).then(setUnread);
+  }, [me]);
+
+  // Charge le fil + marque lu ; temps réel + petit polling de secours.
+  const refreshThread = useCallback(async () => {
+    if (!me || !active) return;
+    setMsgs(await loadThread(me, active.id));
+    await markThreadRead(me, active.id);
+    setUnread((u) => ({ ...u, [active.id]: 0 }));
+    onOpened();
+  }, [me, active, onOpened]);
+
+  useEffect(() => { setMsgs([]); setErr(null); refreshThread(); }, [refreshThread]);
+  useEffect(() => {
+    if (!me || !active) return;
+    const ch = subscribeToMessages(me, (m) => { if (m.sender_id === active.id) refreshThread(); });
+    const poll = window.setInterval(refreshThread, 8000);
+    return () => { supabase.removeChannel(ch); clearInterval(poll); };
+  }, [me, active, refreshThread]);
+  useEffect(() => { scroller.current?.scrollTo({ top: scroller.current.scrollHeight }); }, [msgs.length]);
+
+  const send = async () => {
+    const body = draft.trim();
+    if (!body || !me || !active || sending) return;
+    setSending(true); setErr(null);
+    try {
+      const m = await sendMessage(me, active.id, body);
+      setMsgs((p) => [...p, m]);
+      setDraft("");
+    } catch (x) {
+      setErr(x instanceof Error ? x.message : "Envoi impossible.");
+    } finally { setSending(false); }
+  };
+
+  const hhmm = (iso: string) => new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const dayOf = (iso: string) => new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+
+  if (!active) {
+    return (
+      <>
+        <div className={`${s.subhead} ${s.r} ${s.r1}`}>
+          <button className={s.backbtn} onClick={back} aria-label="Retour"><Icon name="arrowLeft" size={18} /></button>
+          <div><div className={s.hi}>Discute avec tes proches connectés</div><h2>Messages</h2></div>
+        </div>
+        {friends.length === 0 ? (
+          <div className={`${s.pempty} ${s.r} ${s.r2}`}>Aucun proche connecté. Ajoute quelqu&apos;un dans Profil → Partage &amp; proches, puis reviens ici pour discuter.</div>
+        ) : (
+          friends.map((f) => (
+            <div key={f.id} className={`${s.connrow} ${s.r} ${s.r2}`} style={{ cursor: "pointer" }} onClick={() => setActive(f)}>
+              <div className={s.av2}>{(f.name[0] ?? "?").toUpperCase()}</div>
+              <div className={s.ce}><b>@{f.name}</b><span>{unread[f.id] ? `${unread[f.id]} nouveau${unread[f.id] > 1 ? "x" : ""} message${unread[f.id] > 1 ? "s" : ""}` : "Ouvrir la conversation"}</span></div>
+              {unread[f.id] ? <span className={s.unreadDot}>{unread[f.id]}</span> : <span className={s.ch}>›</span>}
+            </div>
+          ))
+        )}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className={`${s.subhead} ${s.r} ${s.r1}`}>
+        <button className={s.backbtn} onClick={() => setActive(null)} aria-label="Retour"><Icon name="arrowLeft" size={18} /></button>
+        <div><div className={s.hi}>Conversation privée</div><h2>@{active.name}</h2></div>
+      </div>
+      <div className={s.chat} ref={scroller}>
+        {msgs.length === 0 && <div className={s.empty2}>Dis bonjour à @{active.name} 👋</div>}
+        {msgs.map((m, i) => {
+          const newDay = i === 0 || dayOf(m.created_at) !== dayOf(msgs[i - 1].created_at);
+          return (
+            <div key={m.id}>
+              {newDay && <div className={s.daysep}>{dayOf(m.created_at)}</div>}
+              <div className={`${s.bub} ${m.sender_id === me ? s.me : s.ai}`} style={{ whiteSpace: "pre-wrap" }}>
+                {m.body}
+                <span className={s.msgtime}>{hhmm(m.created_at)}</span>
+              </div>
+            </div>
+          );
+        })}
+        {err && <div className={s.scanerr}>{err}</div>}
+      </div>
+      <div className={`${s.composer} ${s.r}`}>
+        <input placeholder={`Message à @${active.name}…`} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} disabled={sending} />
+        <button className={s.snd} onClick={send} disabled={sending || !draft.trim()} aria-label="Envoyer"><Icon name="send" size={18} /></button>
+      </div>
+    </>
+  );
+}
+
 /* ---------------- PROFIL (live + déconnexion) ---------------- */
-function ProfilScreen({ profile, email, go }: { profile: Profile | null; email: string; go: (t: Tab) => void }) {
-  const { signOut, user } = useAuth();
+function ProfilScreen({ profile, email, go, unread }: { profile: Profile | null; email: string; go: (t: Tab) => void; unread?: number }) {
+  const { signOut, user, refreshProfile } = useAuth();
   const [stats, setStats] = useState<Stats | null>(null);
   const [perm, setPerm] = useState<NotificationPermission>("default");
   const [rem, setRem] = useState(false);
+  const [prefs, setPrefs] = useState(notifPrefs());
   useEffect(() => {
     if (!user) return;
     loadStats(user.id).then((st) => { setStats(st); const p = computePoints(st); persistGamification(user.id, p, levelFor(p)); });
   }, [user]);
-  useEffect(() => { setPerm(notifPermission()); setRem(remindersEnabled()); }, []);
+  useEffect(() => { setPerm(notifPermission()); setRem(remindersEnabled()); setPrefs(notifPrefs()); }, []);
   const enableNotifs = async () => {
     const p = await requestNotif(); setPerm(p);
     if (p === "granted") { setRemindersEnabled(true); setRem(true); showNotif("Notifications activées ✅", "Tu recevras tes rappels hydratation & repas."); }
   };
   const toggleRem = () => { const v = !rem; setRem(v); setRemindersEnabled(v); };
+  const togglePref = (cat: NotifCat) => {
+    const v = !prefs[cat];
+    setPrefs((p) => ({ ...p, [cat]: v }));
+    setNotifPref(cat, v);
+  };
+
+  // répartition macros personnalisée
+  const [editM, setEditM] = useState(false);
+  const [mpv, setMpv] = useState("30"); const [mcv, setMcv] = useState("40"); const [mfv, setMfv] = useState("30");
+  const [mBusy, setMBusy] = useState(false);
+  const mSum = (parseInt(mpv) || 0) + (parseInt(mcv) || 0) + (parseInt(mfv) || 0);
+  const openMacros = () => {
+    setMpv(String(profile?.macro_p ?? 30)); setMcv(String(profile?.macro_c ?? 40)); setMfv(String(profile?.macro_f ?? 30));
+    setEditM(true);
+  };
+  const saveMacros = async () => {
+    if (!user || mSum !== 100) return;
+    setMBusy(true);
+    await supabase.from("profiles").update({ macro_p: parseInt(mpv), macro_c: parseInt(mcv), macro_f: parseInt(mfv), updated_at: new Date().toISOString() }).eq("id", user.id);
+    await refreshProfile();
+    setMBusy(false); setEditM(false);
+  };
 
   const name = profile?.display_name ?? "Utilisateur";
   const goalLabel = profile?.goal === "perte" ? "perte de poids" : profile?.goal === "masse" ? "prise de masse" : "maintien";
@@ -1693,10 +2194,12 @@ function ProfilScreen({ profile, email, go }: { profile: Profile | null; email: 
         <ProfRow icon="trend" label="Dépense quotidienne (TDEE)" val={profile?.tdee ? `${fr(profile.tdee)} kcal` : "—"} />
         <ProfRow icon="target" label="Objectif calorique" val={profile?.calorie_target ? `${fr(profile.calorie_target)} kcal` : "—"} />
         {deficit ? <ProfRow icon="plus" label="Déficit quotidien" val={`−${fr(deficit)} kcal`} /> : null}
+        <ProfRow icon="dashboard" label="Répartition macros (P/G/L)" val={`${profile?.macro_p ?? 30}/${profile?.macro_c ?? 40}/${profile?.macro_f ?? 30} %`} chevron onClick={openMacros} />
       </div>
       <div className={s.sectionH} style={{ marginTop: 22 }}><h3>Social</h3></div>
       <div className={`${s.plist} ${s.r} ${s.r4}`}>
         <ProfRow icon="fit" label="Partage & proches" chevron onClick={() => go("partage")} />
+        <ProfRow icon="send" label={unread ? `Messages · ${unread} non lu${unread > 1 ? "s" : ""}` : "Messages"} chevron onClick={() => go("msg")} />
       </div>
 
       <div className={s.sectionH} style={{ marginTop: 22 }}><h3>Notifications</h3></div>
@@ -1711,9 +2214,16 @@ function ProfilScreen({ profile, email, go }: { profile: Profile | null; email: 
         ) : (
           <>
             <div className={s.prow}>
-              <div className={s.pic}><Icon name="bell" size={17} /></div>Rappels (eau, repas, bilan)
-              <span className={s.val} onClick={toggleRem} style={{ cursor: "pointer", color: rem ? "var(--lime)" : "var(--txt-3)" }}>{rem ? "Activés" : "Désactivés"}</span>
+              <div className={s.pic}><Icon name="bell" size={17} /></div>Toutes les notifications
+              <span className={s.val} onClick={toggleRem} style={{ cursor: "pointer", color: rem ? "var(--lime)" : "var(--txt-3)" }}>{rem ? "Activées" : "Désactivées"}</span>
             </div>
+            {rem && NOTIF_CATS.map((n) => (
+              <div key={n.cat} className={s.prow}>
+                <div className={s.pic}><Icon name={n.cat === "messages" ? "send" : n.cat === "vide" ? "warning" : n.cat === "bilan" ? "stats" : n.cat === "repas" ? "meals" : "bolt"} size={17} /></div>
+                <div style={{ flex: 1 }}>{n.label}<div style={{ fontSize: 11, color: "var(--txt-3)" }}>{n.desc}</div></div>
+                <span className={s.val} onClick={() => togglePref(n.cat)} style={{ cursor: "pointer", color: prefs[n.cat] ? "var(--lime)" : "var(--txt-3)" }}>{prefs[n.cat] ? "Oui" : "Non"}</span>
+              </div>
+            ))}
             <div className={s.prow} onClick={() => showNotif("Test 🔔", "Voici à quoi ressemblera un rappel BODYUP.")} style={{ cursor: "pointer" }}>
               <div className={s.pic}><Icon name="spark" size={17} /></div>Envoyer une notification test
               <span className={s.ch}>›</span>
@@ -1721,6 +2231,25 @@ function ProfilScreen({ profile, email, go }: { profile: Profile | null; email: 
           </>
         )}
       </div>
+
+      {editM && (
+        <Modal center onClose={() => setEditM(false)}>
+            <h3>Répartition des macros <span className={s.x} onClick={() => setEditM(false)}>✕</span></h3>
+            <div className={s.staplechips} style={{ marginBottom: 14 }}>
+              {MACRO_PRESETS.map((p) => (
+                <span key={p.label} onClick={() => { setMpv(String(p.p)); setMcv(String(p.c)); setMfv(String(p.f)); }}>{p.label} · {p.p}/{p.c}/{p.f}</span>
+              ))}
+            </div>
+            <label>% des calories — protéines / glucides / lipides</label>
+            <div className={s.row3}>
+              <input className={s.inp} type="number" inputMode="numeric" value={mpv} onChange={(e) => setMpv(e.target.value)} placeholder="P %" />
+              <input className={s.inp} type="number" inputMode="numeric" value={mcv} onChange={(e) => setMcv(e.target.value)} placeholder="G %" />
+              <input className={s.inp} type="number" inputMode="numeric" value={mfv} onChange={(e) => setMfv(e.target.value)} placeholder="L %" />
+            </div>
+            {mSum !== 100 && <div className={s.empty2} style={{ color: "var(--coral)" }}>Le total doit faire 100 % (actuellement {mSum} %).</div>}
+            <button className={s.savebtn} onClick={saveMacros} disabled={mBusy || mSum !== 100}>{mBusy ? "Enregistrement…" : "Enregistrer"}</button>
+        </Modal>
+      )}
 
       <div className={s.sectionH}><h3>Connexions santé <span className={s.demoflag}>BIENTÔT</span></h3></div>
       <div className={`${s.sync} ${s.r} ${s.r4}`}>
@@ -1837,42 +2366,99 @@ function CoursesScreen({ back }: { back: () => void }) {
   );
 }
 
-/* ---------------- PHOTOS DE PROGRESSION (démo) ---------------- */
-function ProgressScreen({ profile, back }: { profile: Profile | null; back: () => void }) {
-  const first = progressTimeline[0];
-  const last = progressTimeline[progressTimeline.length - 1];
-  const lost = (first.weight - last.weight).toFixed(1);
-  const toGo = profile?.target_kg ? (last.weight - profile.target_kg).toFixed(1) : "—";
+/* ---------------- PHOTOS DE PROGRESSION (réelles, stockage privé) ---------------- */
+function ProgressScreen({ back }: { back: () => void }) {
+  const { user } = useAuth();
+  const [photos, setPhotos] = useState<ProgressPhoto[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const load = useCallback(async () => {
+    if (!user) return;
+    try { setPhotos(await loadProgressPhotos(user.id)); } catch { setPhotos([]); }
+  }, [user]);
+  useEffect(() => { load(); }, [load]);
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    setBusy(true); setErr(null);
+    try {
+      await uploadProgressPhoto(user.id, file);
+      await load();
+    } catch (x) {
+      setErr(x instanceof Error ? x.message : "Envoi impossible. Réessaie.");
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const del = async (p: ProgressPhoto) => {
+    setPhotos((ps) => (ps ?? []).filter((x) => x.id !== p.id));
+    await deleteProgressPhoto(p.id, p.path);
+  };
+
+  const fmt = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+  const first = photos?.[0];
+  const last = photos && photos.length > 1 ? photos[photos.length - 1] : null;
+
   return (
     <>
+      <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={onFile} />
       <div className={`${s.subhead} ${s.r} ${s.r1}`}>
         <button className={s.backbtn} onClick={back} aria-label="Retour"><Icon name="arrowLeft" size={18} /></button>
-        <div><div className={s.hi}>Avant / après · 5 mois</div><h2>Progression <span className={s.demoflag}>DÉMO</span></h2></div>
-        <button className={s.headact} aria-label="Ajouter une photo"><Icon name="camera" /></button>
+        <div><div className={s.hi}>Tes photos, stockées en privé</div><h2>Progression</h2></div>
+        <button className={s.headact} onClick={() => fileRef.current?.click()} disabled={busy} aria-label="Ajouter une photo"><Icon name="camera" /></button>
       </div>
-      <div className={`${s.compare} ${s.r} ${s.r2}`}>
-        <div className={`${s.cphoto} ${s.before}`}>🧍<span className={s.ctag}>AVANT</span><div className={s.cw}><b>{first.weight} kg</b><span>{first.month} 2026</span></div></div>
-        <div className={`${s.cphoto} ${s.after}`}>🧍<span className={s.ctag}>APRÈS</span><div className={s.cw}><b>{last.weight} kg</b><span>{last.month} 2026</span></div></div>
-      </div>
-      <div className={`${s.cresult} ${s.r} ${s.r3}`}>
-        <div className={s.big}>−{lost}<small> kg</small></div>
-        <div className={s.cr}>Tu as perdu <b>{lost} kg</b> en 5 mois.<br />Plus que {toGo} kg avant ta cible.</div>
-      </div>
-      <div className={`${s.sectionH} ${s.r} ${s.r4}`}><h3>Évolution mensuelle</h3></div>
-      <div className={`${s.timeline} ${s.r} ${s.r4}`}>
-        {progressTimeline.map((p, i) => (
-          <div key={p.month} className={`${s.tnode} ${i === progressTimeline.length - 1 ? s.last : ""}`}>
-            <div className={s.tph}>{p.emoji}</div><div className={s.tm}>{p.month}</div><div className={s.tw}>{p.weight} kg</div>
+
+      {err && <div className={`${s.scanerr} ${s.r}`}>{err}</div>}
+      {busy && <div className={s.searching}><span className={s.sp} /> Envoi de la photo…</div>}
+      {!photos && <div className={s.searching}><span className={s.sp} /> Chargement…</div>}
+
+      {photos && photos.length === 0 && (
+        <div className={`${s.pempty} ${s.r} ${s.r2}`}>
+          Aucune photo pour l&apos;instant. Prends une première photo aujourd&apos;hui — dans quelques semaines,
+          l&apos;avant/après parlera de lui-même. Les photos sont privées (visibles par toi seulement).
+        </div>
+      )}
+
+      {first && last && (
+        <div className={`${s.compare} ${s.r} ${s.r2}`}>
+          <div className={`${s.cphoto} ${s.before}`} style={{ backgroundImage: `url(${first.url})`, backgroundSize: "cover", backgroundPosition: "center" }}>
+            <span className={s.ctag}>AVANT</span><div className={s.cw}><span>{fmt(first.date)}</span></div>
           </div>
-        ))}
-      </div>
-      <button className={`${s.addphoto} ${s.r} ${s.r5}`}><Icon name="plus" size={16} /> Ajouter une photo ce mois-ci</button>
+          <div className={`${s.cphoto} ${s.after}`} style={{ backgroundImage: `url(${last.url})`, backgroundSize: "cover", backgroundPosition: "center" }}>
+            <span className={s.ctag}>APRÈS</span><div className={s.cw}><span>{fmt(last.date)}</span></div>
+          </div>
+        </div>
+      )}
+
+      {photos && photos.length > 0 && (
+        <>
+          <div className={`${s.sectionH} ${s.r} ${s.r3}`}><h3>Toutes les photos</h3><a>{photos.length}</a></div>
+          <div className={`${s.photogrid} ${s.r} ${s.r3}`}>
+            {[...photos].reverse().map((p) => (
+              <div key={p.id} className={s.pcell}>
+                <img src={p.url} alt={fmt(p.date)} loading="lazy" />
+                <span className={s.pdate}>{fmt(p.date)}</span>
+                <button className={s.pdel} onClick={() => del(p)} aria-label="Supprimer">✕</button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <button className={`${s.addphoto} ${s.r} ${s.r5}`} onClick={() => fileRef.current?.click()} disabled={busy}>
+        <Icon name="plus" size={16} /> {busy ? "Envoi…" : "Ajouter une photo"}
+      </button>
     </>
   );
 }
 
 /* ---------------- PARTAGE ENTRE UTILISATEURS (par nom d'utilisateur) ---------------- */
-function PartageScreen({ back }: { back: () => void }) {
+function PartageScreen({ back, onChat }: { back: () => void; onChat?: (f: { id: string; name: string }) => void }) {
   const { user, profile, refreshProfile } = useAuth();
   const myId = user?.id ?? "";
   const myUsername = profile?.username ?? null;
@@ -1971,6 +2557,7 @@ function PartageScreen({ back }: { back: () => void }) {
               <Av e={otherName(c)} />
               <div className={s.ce}><b>{otherName(c)}</b><span>{theirCats(c).map((x) => SHARE_LABELS[x].split(" ")[0]).join(" · ") || "rien partagé"}</span></div>
               <div className={s.ca}>
+                {onChat && <button className={`${s.cbtn2} ${s.viewb}`} onClick={() => onChat({ id: otherId(c), name: otherName(c) })}>💬</button>}
                 <button className={`${s.cbtn2} ${s.viewb}`} onClick={() => setView(c)}>Voir</button>
                 <button className={`${s.cbtn2} ${s.dec}`} onClick={() => remove(c)}>✕</button>
               </div>

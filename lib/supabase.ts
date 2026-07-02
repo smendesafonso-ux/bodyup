@@ -35,6 +35,9 @@ export interface Profile {
   onboarded: boolean;
   points: number | null;
   level: number | null;
+  macro_p: number | null; // % des calories en protéines (défaut 30)
+  macro_c: number | null; // % glucides (défaut 40)
+  macro_f: number | null; // % lipides (défaut 30)
 }
 
 export interface FoodEntry {

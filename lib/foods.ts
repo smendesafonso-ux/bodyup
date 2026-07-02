@@ -12,8 +12,11 @@ export interface FoodHit {
   f100: number;
   unit?: "g" | "ml"; // ml = boisson
   source: "base" | "off"; // base BODYUP ou Open Food Facts
-  nutriscore?: string | null; // a..e (code-barres uniquement)
+  nutriscore?: string | null; // a..e
   nova?: number | null; // 1..4 (degré de transformation)
+  sugars100?: number | null; // sucres g / 100
+  fiber100?: number | null; // fibres g / 100
+  salt100?: number | null; // sel g / 100
 }
 
 const hitFromLocal = (f: LocalFood): FoodHit => ({
@@ -81,7 +84,15 @@ type OffProduct = {
   product_name_fr?: string;
   brands?: string;
   nutriments?: Record<string, unknown>;
+  nutriscore_grade?: string;
+  nova_group?: number;
 };
+
+const gradeOf = (p: OffProduct): string | null => {
+  const g = typeof p.nutriscore_grade === "string" ? p.nutriscore_grade.toLowerCase() : null;
+  return g && "abcde".includes(g) ? g : null;
+};
+const opt1 = (v: unknown): number | null => (typeof v === "number" ? Math.round(v * 10) / 10 : null);
 
 function offToHits(products: OffProduct[]): FoodHit[] {
   const out: FoodHit[] = [];
@@ -100,6 +111,11 @@ function offToHits(products: OffProduct[]): FoodHit[] {
       f100: round1(n.fat_100g),
       unit: "g",
       source: "off",
+      nutriscore: gradeOf(p),
+      nova: typeof p.nova_group === "number" ? p.nova_group : null,
+      sugars100: opt1(n.sugars_100g),
+      fiber100: opt1(n.fiber_100g),
+      salt100: opt1(n.salt_100g),
     });
   }
   return out;
@@ -109,7 +125,7 @@ function offToHits(products: OffProduct[]): FoodHit[] {
 async function searchOFF(q: string): Promise<FoodHit[]> {
   const params = new URLSearchParams({
     search_terms: q, search_simple: "1", action: "process", json: "1",
-    page_size: "15", fields: "product_name,product_name_fr,brands,nutriments",
+    page_size: "15", fields: "product_name,product_name_fr,brands,nutriments,nutriscore_grade,nova_group",
   }).toString();
   let json = (await fetchJson(`https://fr.openfoodfacts.org/cgi/search.pl?${params}`, 5000)) as { products?: OffProduct[] } | null;
   if (!json?.products?.length) {
@@ -130,7 +146,6 @@ export async function lookupBarcode(code: string): Promise<FoodHit | null> {
   const kcal = n["energy-kcal_100g"];
   const name = p.product_name_fr || p.product_name;
   if (!name || typeof kcal !== "number") return null;
-  const grade = typeof p.nutriscore_grade === "string" ? p.nutriscore_grade.toLowerCase() : null;
   return {
     name: String(name).trim(),
     brand: p.brands ? String(p.brands).split(",")[0].trim() : null,
@@ -140,8 +155,11 @@ export async function lookupBarcode(code: string): Promise<FoodHit | null> {
     f100: round1(n.fat_100g),
     unit: "g",
     source: "off",
-    nutriscore: grade && "abcde".includes(grade) ? grade : null,
+    nutriscore: gradeOf(p),
     nova: typeof p.nova_group === "number" ? p.nova_group : null,
+    sugars100: opt1(n.sugars_100g),
+    fiber100: opt1(n.fiber_100g),
+    salt100: opt1(n.salt_100g),
   };
 }
 
