@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import s from "@/styles/mobile.module.css";
+import { Modal } from "./Modal";
 import { Icon, type IconName } from "./Icon";
 import { CalorieRing } from "./CalorieRing";
 import { fr } from "@/lib/nutrition";
@@ -365,8 +366,7 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
   };
 
   return (
-    <div className={s.modalwrap} onClick={onClose}>
-      <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose}>
         <h3>Ajouter un aliment <span className={s.x} onClick={onClose}>✕</span></h3>
         <div className={s.mealpick}>
           {MEAL_DEFS.map((m) => (
@@ -453,8 +453,7 @@ function AddFoodSheet({ defaultMeal, onClose, onSave }: { defaultMeal: MealKey; 
             <button className={s.switchmode} onClick={() => setMode("search")}><u>← Revenir à la recherche</u></button>
           </>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -774,8 +773,7 @@ function ExerciseDetail({ ex, day, onClose }: { ex: Exercise; day: Day; onClose:
   };
 
   return (
-    <div className={s.modalwrap} onClick={onClose}>
-      <div className={`${s.sheet} ${s.rsheet}`} onClick={(e) => e.stopPropagation()}>
+    <Modal tall onClose={onClose}>
         <div style={{ display: "flex", justifyContent: "flex-end" }}><span className={s.x} onClick={onClose}>✕</span></div>
         <div className={s.exhero}>
           <div className={s.orb}>{ex.emoji}</div>
@@ -815,8 +813,7 @@ function ExerciseDetail({ ex, day, onClose }: { ex: Exercise; day: Day; onClose:
         <ol className={s.rsteps}>{ex.steps.map((x, i) => <li key={i}>{x}</li>)}</ol>
         <div className={s.rsec}>Conseil</div>
         <p className={s.steps} style={{ borderLeftColor: "var(--lime)", marginBottom: 4 }}>{ex.tip}</p>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -840,8 +837,7 @@ function RecipeModal({ meal, added, userId, onClose, onAdd, onCart }: { meal: Ai
   const missing = ings.filter((x) => !x.have);
   const [bought, setBought] = useState(false);
   return (
-    <div className={s.modalwrap} onClick={onClose}>
-      <div className={`${s.sheet} ${s.rsheet}`} onClick={(e) => e.stopPropagation()}>
+    <Modal tall onClose={onClose}>
         <div style={{ display: "flex", justifyContent: "flex-end" }}><span className={s.x} onClick={onClose}>✕</span></div>
         <img className={s.mphoto} src={aiPhoto(meal.name)} alt={meal.name} />
         <div className={s.rh}>
@@ -875,8 +871,7 @@ function RecipeModal({ meal, added, userId, onClose, onAdd, onCart }: { meal: Ai
           <button className={`${s.btn} ${s.ghost}`} onClick={onCart}><Icon name="cart" size={16} />Ma liste</button>
           <button className={`${s.btn} ${s.prim}`} onClick={onAdd}><Icon name={added ? "check" : "plus"} size={16} />{added ? "Ajouté" : "Au journal"}</button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1085,8 +1080,7 @@ function Explorer({ go }: { go: (t: Tab) => void }) {
 function MealDetail({ meal, loading, userId, onClose, go }: { meal: MealFull | null; loading: boolean; userId?: string; onClose: () => void; go: (t: Tab) => void }) {
   const [added, setAdded] = useState(false);
   return (
-    <div className={s.modalwrap} onClick={onClose}>
-      <div className={`${s.sheet} ${s.rsheet}`} onClick={(e) => e.stopPropagation()}>
+    <Modal tall onClose={onClose}>
         <div style={{ display: "flex", justifyContent: "flex-end" }}><span className={s.x} onClick={onClose}>✕</span></div>
         {loading || !meal ? (
           <div className={s.explload}><div className={s.gsp} />Chargement de la recette…</div>
@@ -1105,8 +1099,7 @@ function MealDetail({ meal, loading, userId, onClose, go }: { meal: MealFull | n
             <ol className={s.rsteps}>{meal.steps.map((x, i) => <li key={i}>{x}</li>)}</ol>
           </>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1195,8 +1188,7 @@ function Library({ day, pantry, userId, go }: { day: Day; pantry: string[]; user
       </div>
 
       {inbox && (
-        <div className={s.modalwrap} onClick={() => setInbox(false)}>
-          <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
+        <Modal onClose={() => setInbox(false)}>
             <h3>Recettes reçues <span className={s.x} onClick={() => setInbox(false)}>✕</span></h3>
             {received.length === 0 ? (
               <div className={s.pempty}>Aucune recette reçue pour l’instant. Tes amis peuvent t’en envoyer depuis une fiche recette.</div>
@@ -1207,8 +1199,7 @@ function Library({ day, pantry, userId, go }: { day: Day; pantry: string[]; user
                 <span className={s.ch}>›</span>
               </div>
             ))}
-          </div>
-        </div>
+        </Modal>
       )}
 
       {sel && <LibRecipeModal recipe={sel} pantry={pantry} userId={userId} myUsername={profile?.username ?? null} friends={friends} day={day} go={go} onClose={() => setSel(null)} />}
@@ -1235,8 +1226,7 @@ function LibRecipeModal({ recipe, pantry, userId, myUsername, friends, day, go, 
   const has = (ing: string) => pantry.some((p) => ing.toLowerCase().includes(p.toLowerCase()));
   const missing = recipe.ingredients.filter((i) => !has(i));
   return (
-    <div className={s.modalwrap} onClick={onClose}>
-      <div className={`${s.sheet} ${s.rsheet}`} onClick={(e) => e.stopPropagation()}>
+    <Modal tall onClose={onClose}>
         <div style={{ display: "flex", justifyContent: "flex-end" }}><span className={s.x} onClick={onClose}>✕</span></div>
         {recipe.video && ytId(recipe.video)
           ? <div className={s.vidwrap}><iframe className={s.vid} src={`https://www.youtube-nocookie.com/embed/${ytId(recipe.video)}`} title={recipe.name} loading="lazy" referrerPolicy="strict-origin-when-cross-origin" allow="encrypted-media; fullscreen" allowFullScreen /></div>
@@ -1275,8 +1265,7 @@ function LibRecipeModal({ recipe, pantry, userId, myUsername, friends, day, go, 
         </div>
 
         {picker && (
-          <div className={s.modalwrap} onClick={() => setPicker(false)}>
-            <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
+          <Modal onClose={() => setPicker(false)}>
               <h3>Partager « {recipe.name} » <span className={s.x} onClick={() => setPicker(false)}>✕</span></h3>
               {sentTo && <div className={s.pempty} style={{ color: sentTo.startsWith("⚠️") ? "var(--coral)" : "var(--lime)" }}>{sentTo}</div>}
               {pals.length === 0 ? (
@@ -1288,11 +1277,9 @@ function LibRecipeModal({ recipe, pantry, userId, myUsername, friends, day, go, 
                   <span className={s.ch}><Icon name="send" size={15} /></span>
                 </div>
               ))}
-            </div>
-          </div>
+          </Modal>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1498,19 +1485,16 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
       </div>
 
       {editW && (
-        <div className={`${s.modalwrap} ${s.centerwrap}`} onClick={() => setEditW(false)}>
-          <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
+        <Modal center onClose={() => setEditW(false)}>
             <h3>Mettre à jour mon poids <span className={s.x} onClick={() => setEditW(false)}>✕</span></h3>
             <label>Poids (kg)</label>
             <input className={s.inp} type="number" inputMode="decimal" value={wval} onChange={(e) => setWval(e.target.value)} placeholder="78.5" autoFocus />
             <button className={s.savebtn} onClick={saveWeight} disabled={busy || !wval}>{busy ? "Enregistrement…" : "Enregistrer"}</button>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {editA && (
-        <div className={`${s.modalwrap} ${s.centerwrap}`} onClick={() => setEditA(false)}>
-          <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
+        <Modal center onClose={() => setEditA(false)}>
             <h3>Activité du jour <span className={s.x} onClick={() => setEditA(false)}>✕</span></h3>
             <label>Nombre de pas</label>
             <input className={s.inp} type="number" inputMode="numeric" value={stepsVal} onChange={(e) => setStepsVal(e.target.value)} placeholder="8000" />
@@ -1521,13 +1505,11 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
               await day.setDailyMetric({ steps: parseInt(stepsVal) || 0, sleep_min: Math.round((parseFloat(sleepVal) || 0) * 60) });
               setBusy(false); setEditA(false);
             }} disabled={busy}>{busy ? "Enregistrement…" : "Enregistrer"}</button>
-          </div>
-        </div>
+        </Modal>
       )}
 
       {picker && (
-        <div className={s.modalwrap} onClick={() => setPicker(false)}>
-          <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
+        <Modal onClose={() => setPicker(false)}>
             <h3>Comparer avec… <span className={s.x} onClick={() => setPicker(false)}>✕</span></h3>
             {conns.length === 0 ? (
               <div className={s.pempty}>Aucun proche connecté. Ajoute-en un dans Profil → Partage.</div>
@@ -1543,8 +1525,7 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
                 );
               })
             )}
-          </div>
-        </div>
+        </Modal>
       )}
     </>
   );
@@ -2016,15 +1997,13 @@ function PartageScreen({ back }: { back: () => void }) {
       )}
 
       {editU && (
-        <div className={`${s.modalwrap} ${s.centerwrap}`} onClick={() => setEditU(false)}>
-          <div className={s.sheet} onClick={(e) => e.stopPropagation()}>
+        <Modal center onClose={() => setEditU(false)}>
             <h3>Ton nom d&apos;utilisateur <span className={s.x} onClick={() => setEditU(false)}>✕</span></h3>
             <label>Choisis un identifiant unique (ce que tes proches saisiront)</label>
             <input className={s.inp} value={uval} onChange={(e) => setUval(e.target.value)} placeholder="ex : seb_afonso" autoCapitalize="none" autoFocus />
             <button className={s.savebtn} onClick={saveUsername} disabled={!uval.trim()}>Enregistrer</button>
             {msg && <div className={s.invmsg} style={{ color: "var(--coral)" }}>{msg}</div>}
-          </div>
-        </div>
+        </Modal>
       )}
 
       {view && <SharedDataModal otherId={otherId(view)} otherName={otherName(view)} cats={theirCats(view)} onClose={() => setView(null)} />}
@@ -2041,8 +2020,7 @@ function SharedDataModal({ otherId, otherName, cats, onClose }: { otherId: strin
   const sleep = data ? (data.sleepMin > 0 ? `${Math.floor(data.sleepMin / 60)}h${String(data.sleepMin % 60).padStart(2, "0")}` : "—") : "—";
 
   return (
-    <div className={s.modalwrap} onClick={onClose}>
-      <div className={`${s.sheet} ${s.rsheet}`} onClick={(e) => e.stopPropagation()}>
+    <Modal tall onClose={onClose}>
         <div style={{ display: "flex", justifyContent: "flex-end" }}><span className={s.x} onClick={onClose}>✕</span></div>
         <div className={s.sdhead}>
           <div className={s.av2}>{(otherName[0] ?? "?").toUpperCase()}</div>
@@ -2076,7 +2054,6 @@ function SharedDataModal({ otherId, otherName, cats, onClose }: { otherId: strin
             {cats.length === 0 && <div className={s.pempty}>Cette personne ne partage aucune donnée pour l&apos;instant.</div>}
           </>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
