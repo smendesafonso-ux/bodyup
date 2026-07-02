@@ -80,7 +80,7 @@ const NUTRI_LABEL: Record<string, string> = {
 
 export default function MobileApp() {
   const { profile, user } = useAuth();
-  const day = useDay(user?.id);
+  const day = useDay(user?.id, profile?.weight_kg);
   const [tab, setTab] = useState<Tab>("home");
   const [addMeal, setAddMeal] = useState<MealKey | null>(null);
   const [unread, setUnread] = useState(0);
@@ -1746,7 +1746,7 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
 
       <div className={`${s.kgrid} ${s.r} ${s.r3}`}>
         <Metric icon="clock" tint="rgba(91,209,255,.12)" color="var(--sky)" v={fr(Math.max(remaining, 0))} unit=" kcal" k="Restantes aujourd'hui" />
-        <Metric icon="flameLine" tint="rgba(255,122,83,.12)" color="var(--coral)" v={fr(day.burned)} unit=" kcal" k="Brûlées aujourd'hui" />
+        <Metric icon="flameLine" tint="rgba(255,122,83,.12)" color="var(--coral)" v={fr(day.burned)} unit=" kcal" k={day.stepsKcal > 0 ? `Brûlées (dont ${fr(day.stepsKcal)} par les pas)` : "Brûlées aujourd'hui"} />
         <Metric icon="check" tint="rgba(201,255,60,.12)" color="var(--lime)" v={profile?.calorie_target ? fr(profile.calorie_target) : "—"} unit=" kcal" k="Objectif quotidien" />
         <Metric icon="trend" tint="rgba(183,155,255,.12)" color="var(--violet)" v={deficit != null ? `${deficit >= 0 ? "−" : "+"}${fr(Math.abs(deficit))}` : "—"} unit=" kcal" k="Déficit du jour" />
         <Metric icon="steps" tint="rgba(91,209,255,.12)" color="var(--sky)" v={fr(day.steps)} unit=" pas" k="Pas aujourd'hui" />
@@ -1757,7 +1757,7 @@ function StatsScreen({ profile, day, go }: { profile: Profile | null; day: Day; 
 
       <div className={`${s.healthcard} ${s.r} ${s.r4}`} onClick={() => { setStepsVal(day.steps ? String(day.steps) : ""); setSleepVal(day.sleepMin ? (day.sleepMin / 60).toFixed(1) : ""); setEditA(true); }}>
         <div className={s.ic}><Icon name="steps" /></div>
-        <div><b>Saisir pas &amp; sommeil</b><span>Manuel — la synchro Apple Santé arrive (app native)</span></div>
+        <div><b>Saisir pas &amp; sommeil</b><span>Les pas comptent dans tes calories brûlées</span></div>
         <span className={s.ch}>›</span>
       </div>
 

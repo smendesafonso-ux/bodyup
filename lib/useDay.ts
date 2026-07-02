@@ -5,12 +5,12 @@ import { supabase, todayISO, type FoodEntry } from "./supabase";
 
 export type NewFood = Omit<FoodEntry, "id" | "user_id" | "date">;
 
-export function useDay(userId: string | undefined) {
+export function useDay(userId: string | undefined, weightKg?: number | null) {
   const [entries, setEntries] = useState<FoodEntry[]>([]);
   const [glasses, setGlasses] = useState(0);
   const [steps, setSteps] = useState(0);
   const [sleepMin, setSleepMin] = useState(0);
-  const [burned, setBurned] = useState(0);
+  const [workoutKcal, setWorkoutKcal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState(todayISO());
 
@@ -35,7 +35,7 @@ export function useDay(userId: string | undefined) {
     setGlasses((w.data?.glasses as number) ?? 0);
     setSteps((w.data?.steps as number) ?? 0);
     setSleepMin((w.data?.sleep_min as number) ?? 0);
-    setBurned(((wo.data as { kcal: number }[]) ?? []).reduce((n, x) => n + x.kcal, 0));
+    setWorkoutKcal(((wo.data as { kcal: number }[]) ?? []).reduce((n, x) => n + x.kcal, 0));
     setLoading(false);
   }, [userId, date]);
 
@@ -81,5 +81,10 @@ export function useDay(userId: string | undefined) {
     f: entries.reduce((n, e) => n + e.fat, 0),
   };
 
-  return { entries, glasses, steps, sleepMin, burned, loading, consumed, macros, addEntry, deleteEntry, setWater, addWorkout, setDailyMetric, reload: load };
+  // Les pas comptent dans les calories brûlées : ≈ 0,0004 kcal × poids (kg) par pas
+  // (marche ~0,5 kcal/kg/km, ~1 250 pas/km). Ex : 8 000 pas à 75 kg ≈ 240 kcal.
+  const stepsKcal = Math.round(steps * 0.0004 * (weightKg ?? 70));
+  const burned = workoutKcal + stepsKcal;
+
+  return { entries, glasses, steps, sleepMin, burned, workoutKcal, stepsKcal, loading, consumed, macros, addEntry, deleteEntry, setWater, addWorkout, setDailyMetric, reload: load };
 }
