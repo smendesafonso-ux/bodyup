@@ -17,6 +17,7 @@ import { loadFavorites, addFavorite, removeFavoriteByName, favToHit, loadRecentF
 import { FASTING_PROTOCOLS, getActiveFast, startFast, endFast, loadFastHistory, fastElapsedH, type Fast } from "@/lib/fasting";
 import { loadThread, sendMessage, markThreadRead, loadUnreadCounts, subscribeToMessages, type ChatMsg } from "@/lib/chat";
 import { uploadProgressPhoto, loadProgressPhotos, deleteProgressPhoto, type ProgressPhoto } from "@/lib/photos";
+import { enablePush, pushSupported } from "@/lib/push";
 import { analyzeFoodPhoto, type FoodAnalysis } from "@/lib/vision";
 import { suggestMeals, normIngredients, type AiMeal } from "@/lib/meals";
 import { translateTexts } from "@/lib/translate";
@@ -110,6 +111,12 @@ export default function MobileApp() {
     const poll = window.setInterval(refreshUnread, 30000); // secours si le temps réel est indisponible
     return () => { supabase.removeChannel(ch); clearInterval(poll); };
   }, [user, refreshUnread]);
+
+  // Push serveur : (ré)enregistre cet appareil à chaque lancement si la permission est déjà accordée,
+  // pour recevoir les messages même app fermée.
+  useEffect(() => {
+    if (user && notifPermission() === "granted") enablePush(user.id);
+  }, [user]);
 
   const openChat = (friend: { id: string; name: string }) => { setChatWith(friend); setTab("msg"); };
 
@@ -2001,7 +2008,7 @@ function HistoryScreen({ profile, back }: { profile: Profile | null; back: () =>
 
 /* ---------------- MESSAGES ENTRE PROCHES (chat) ---------------- */
 function MessagesScreen({ initial, onOpened, back }: { initial: { id: string; name: string } | null; onOpened: () => void; back: () => void }) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const me = user?.id ?? "";
   const [friends, setFriends] = useState<{ id: string; name: string }[]>([]);
   const [unread, setUnread] = useState<Record<string, number>>({});
@@ -2046,7 +2053,7 @@ function MessagesScreen({ initial, onOpened, back }: { initial: { id: string; na
     if (!body || !me || !active || sending) return;
     setSending(true); setErr(null);
     try {
-      const m = await sendMessage(me, active.id, body);
+      const m = await sendMessage(me, active.id, body, profile?.username ?? profile?.display_name);
       setMsgs((p) => [...p, m]);
       setDraft("");
     } catch (x) {
@@ -2123,7 +2130,11 @@ function ProfilScreen({ profile, email, go, unread }: { profile: Profile | null;
   useEffect(() => { setPerm(notifPermission()); setRem(remindersEnabled()); setPrefs(notifPrefs()); }, []);
   const enableNotifs = async () => {
     const p = await requestNotif(); setPerm(p);
-    if (p === "granted") { setRemindersEnabled(true); setRem(true); showNotif("Notifications activées ✅", "Tu recevras tes rappels hydratation & repas."); }
+    if (p === "granted") {
+      setRemindersEnabled(true); setRem(true);
+      if (user) await enablePush(user.id); // messages reçus même app fermée
+      showNotif("Notifications activées ✅", "Tu recevras tes rappels et les messages de tes proches.");
+    }
   };
   const toggleRem = () => { const v = !rem; setRem(v); setRemindersEnabled(v); };
   const togglePref = (cat: NotifCat) => {
@@ -2224,6 +2235,12 @@ function ProfilScreen({ profile, email, go, unread }: { profile: Profile | null;
                 <span className={s.val} onClick={() => togglePref(n.cat)} style={{ cursor: "pointer", color: prefs[n.cat] ? "var(--lime)" : "var(--txt-3)" }}>{prefs[n.cat] ? "Oui" : "Non"}</span>
               </div>
             ))}
+            {!pushSupported() && (
+              <div className={s.prow}>
+                <div className={s.pic}><Icon name="info" size={17} /></div>
+                <div style={{ flex: 1, fontSize: 12.5, color: "var(--txt-2)" }}>Pour recevoir les messages quand l&apos;app est fermée, installe BODYUP sur l&apos;écran d&apos;accueil (iOS 16.4+).</div>
+              </div>
+            )}
             <div className={s.prow} onClick={() => showNotif("Test 🔔", "Voici à quoi ressemblera un rappel BODYUP.")} style={{ cursor: "pointer" }}>
               <div className={s.pic}><Icon name="spark" size={17} /></div>Envoyer une notification test
               <span className={s.ch}>›</span>

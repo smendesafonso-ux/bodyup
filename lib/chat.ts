@@ -1,6 +1,7 @@
 "use client";
 
 import { supabase } from "./supabase";
+import { sendPushTo } from "./push";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export interface ChatMsg {
@@ -23,13 +24,15 @@ export async function loadThread(me: string, other: string, limit = 200): Promis
   return ((data as ChatMsg[]) ?? []);
 }
 
-export async function sendMessage(me: string, other: string, body: string): Promise<ChatMsg> {
+export async function sendMessage(me: string, other: string, body: string, senderName?: string | null): Promise<ChatMsg> {
   const { data, error } = await supabase
     .from("messages")
     .insert({ sender_id: me, recipient_id: other, body: body.trim() })
     .select("*")
     .single();
   if (error) throw new Error("Envoi impossible. Vérifie ta connexion (et que update_v2.sql est exécuté dans Supabase).");
+  // push serveur : le destinataire est prévenu même app fermée (non bloquant)
+  sendPushTo(other, `Message de @${senderName ?? "un proche"} 💬`, body.trim());
   return data as ChatMsg;
 }
 

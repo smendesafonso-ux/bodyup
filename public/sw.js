@@ -7,6 +7,19 @@ self.addEventListener("activate", (e) => { e.waitUntil(self.clients.claim()); })
 // Handler fetch minimal (requis pour l'installabilité). Réseau, sans interférer.
 self.addEventListener("fetch", () => {});
 
+// Push serveur (VAPID) : notification reçue MÊME APP FERMÉE (messages entre proches).
+self.addEventListener("push", (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { /* payload vide */ }
+  e.waitUntil(self.registration.showNotification(d.title || "BODYUP", {
+    body: d.body || "",
+    icon: "/bodyup/icon-192.png",
+    badge: "/bodyup/icon-192.png",
+    tag: d.tag || "bodyup",
+    renotify: true,
+  }));
+});
+
 // Affiche une notification demandée par la page (rappels locaux).
 self.addEventListener("message", (e) => {
   const d = e.data || {};
