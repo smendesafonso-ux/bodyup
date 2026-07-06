@@ -1,5 +1,5 @@
 // Contenu pédagogique pour l'Attestation d'aptitude — catégorie I (fluides frigorigènes).
-// Outil de révision personnel : fiches + banque de questions taguées par thème et difficulté.
+// Outil de révision personnel : fiches VISUELLES (blocs) + banque de questions adaptatives.
 // ⚠️ Aide à la révision — à recouper avec le référentiel officiel en vigueur (règlement (UE) 517/2014,
 // arrêtés relatifs à la manipulation des fluides frigorigènes). Les seuils sont donnés à titre indicatif.
 
@@ -25,219 +25,331 @@ export const THEMES: Theme[] = [
 export const themeById = (id: ThemeId) => THEMES.find((t) => t.id === id)!;
 
 /* -------------------------------------------------------------------------- */
-/*  FICHES DE RÉVISION                                                        */
+/*  FICHES DE RÉVISION — modèle par blocs visuels                             */
 /* -------------------------------------------------------------------------- */
-// Le texte accepte le gras **comme ceci**. Chaque section = un titre + des points.
+// Le texte accepte le gras **comme ceci**.
 
-export interface FicheSection { h: string; points: string[]; memo?: string }
+export type DiagramId = "cycle" | "bottle80" | "safety";
+
+export type Cell = string | { t: string; c?: string; b?: boolean };
+
+export type Block =
+  | { type: "points"; items: string[] }
+  | { type: "callout"; tone: "memo" | "warn" | "info"; text: string }
+  | { type: "diagram"; id: DiagramId }
+  | { type: "table"; head: string[]; rows: Cell[][]; caption?: string }
+  | { type: "cards"; cols?: 2 | 3; items: { emoji?: string; title: string; sub?: string; color?: string; tags?: string[] }[] }
+  | { type: "compare"; a: { title: string; color: string; points: string[] }; b: { title: string; color: string; points: string[] } }
+  | { type: "steps"; items: { title: string; text: string }[] }
+  | { type: "bars"; unit?: string; max: number; note?: string; items: { label: string; value: number; color?: string; display?: string }[] };
+
+export interface FicheSection { h: string; blocks: Block[] }
 export interface Fiche { intro: string; sections: FicheSection[] }
 
 export const FICHES: Record<ThemeId, Fiche> = {
   thermo: {
-    intro: "Le froid ne se « crée » pas : on **déplace la chaleur** d'un endroit froid (à refroidir) vers un endroit chaud (l'extérieur). Le fluide frigorigène est le transporteur de cette chaleur, en changeant d'état.",
+    intro: "Le froid ne se « crée » pas : on **déplace la chaleur** d'un endroit froid vers un endroit chaud. Le fluide frigorigène transporte cette chaleur en **changeant d'état**, en boucle fermée.",
     sections: [
       {
-        h: "Les 4 organes / 4 étapes du cycle à compression",
-        points: [
-          "**Compresseur** : aspire la vapeur BP (basse pression) et la refoule en HP (haute pression). La vapeur devient **surchauffée et chaude**.",
-          "**Condenseur** : la vapeur HP cède sa chaleur à l'extérieur et **se condense** (vapeur → liquide). C'est le côté haute pression.",
-          "**Détendeur** : fait chuter brutalement la pression (HP → BP). Une partie du liquide se vaporise (« flash »), la température chute fortement.",
-          "**Évaporateur** : le liquide BP absorbe la chaleur du milieu à refroidir et **s'évapore** (liquide → vapeur). C'est là que le froid est produit.",
-        ],
-        memo: "Compression → Condensation → Détente → Évaporation, en boucle fermée.",
-      },
-      {
-        h: "Pression et température : le lien clé",
-        points: [
-          "Pour un fluide pur en changement d'état, **à une pression correspond une température** (température de saturation).",
-          "On monte la pression (compresseur) pour condenser à température ambiante ; on baisse la pression (détendeur) pour évaporer à basse température.",
-          "Côté HP = pression de condensation ; côté BP = pression d'évaporation.",
+        h: "Le cycle à compression",
+        blocks: [
+          { type: "diagram", id: "cycle" },
+          { type: "callout", tone: "memo", text: "**Compression → Condensation → Détente → Évaporation**, en boucle. Le compresseur et le condenseur = côté **HP** ; le détendeur détend vers l'évaporateur = côté **BP**." },
         ],
       },
       {
-        h: "Surchauffe et sous-refroidissement",
-        points: [
-          "**Surchauffe** = écart entre la température réelle de la vapeur en sortie d'évaporateur et la température d'évaporation. Elle garantit qu'**aucun liquide n'arrive au compresseur** (les coups de liquide le détruisent).",
-          "**Sous-refroidissement** = écart entre la température du liquide en sortie de condenseur et la température de condensation. Il garantit un **liquide pur** (sans bulles) à l'entrée du détendeur.",
-          "Surchauffe insuffisante → risque de coups de liquide. Sous-refroidissement insuffisant → détendeur mal alimenté, perte de rendement.",
+        h: "Rôle de chaque organe",
+        blocks: [
+          {
+            type: "table",
+            head: ["Organe", "Ce qu'il fait", "Côté"],
+            rows: [
+              [{ t: "🔧 Compresseur", b: true }, "Aspire la vapeur BP, la refoule en HP (vapeur chaude)", { t: "BP → HP", c: "var(--coral)" }],
+              [{ t: "🔥 Condenseur", b: true }, "Rejette la chaleur → la vapeur se condense (liquide)", { t: "HP", c: "var(--coral)" }],
+              [{ t: "💧 Détendeur", b: true }, "Chute de pression → le liquide se refroidit fortement", { t: "HP → BP", c: "var(--sky)" }],
+              [{ t: "❄️ Évaporateur", b: true }, "Absorbe la chaleur → le liquide s'évapore (le froid !)", { t: "BP", c: "var(--sky)" }],
+            ],
+          },
         ],
       },
       {
-        h: "Le diagramme enthalpique (log p – h)",
-        points: [
-          "Outil pour lire le cycle : en abscisse l'**enthalpie** (h, énergie), en ordonnée la **pression** (log p).",
-          "La « cloche » sépare liquide (gauche), mélange liquide+vapeur (dessous) et vapeur (droite).",
-          "Il permet de lire les pressions, températures, surchauffe, sous-refroidissement et l'effet frigorifique.",
+        h: "Surchauffe & sous-refroidissement",
+        blocks: [
+          {
+            type: "compare",
+            a: {
+              title: "🌡️ Surchauffe", color: "var(--coral)",
+              points: [
+                "Mesurée sur la **vapeur** en sortie d'évaporateur",
+                "Écart avec la température d'évaporation",
+                "Garantit qu'**aucun liquide** n'arrive au compresseur",
+                "Trop faible → **coups de liquide** (compresseur détruit)",
+              ],
+            },
+            b: {
+              title: "🧊 Sous-refroidissement", color: "var(--sky)",
+              points: [
+                "Mesuré sur le **liquide** en sortie de condenseur",
+                "Écart avec la température de condensation",
+                "Garantit un **liquide pur** (sans bulles) au détendeur",
+                "Trop faible → détendeur mal alimenté, rendement en baisse",
+              ],
+            },
+          },
+        ],
+      },
+      {
+        h: "Pression ⇄ température",
+        blocks: [
+          { type: "points", items: [
+            "Pour un fluide **pur** en changement d'état : à **une pression** correspond **une température** (saturation).",
+            "On **monte** la pression (compresseur) pour condenser à température ambiante.",
+            "On **baisse** la pression (détendeur) pour évaporer à basse température.",
+          ] },
+          { type: "callout", tone: "info", text: "Le **diagramme enthalpique (log p – h)** trace le cycle : pression en ordonnée (log), enthalpie en abscisse. La « cloche » sépare liquide / mélange / vapeur." },
         ],
       },
     ],
   },
 
   fluides: {
-    intro: "Un fluide frigorigène doit changer d'état facilement aux pressions utiles. On les classe par **famille chimique**, par **impact environnemental** et par **sécurité**.",
+    intro: "Un fluide frigorigène change d'état facilement aux pressions utiles. On les classe par **famille chimique**, par **impact environnemental** (ODP, GWP) et par **sécurité** (toxicité / inflammabilité).",
     sections: [
       {
         h: "Les grandes familles",
-        points: [
-          "**CFC** (ex : R-12) : chlore + fluor. ODP très élevé → **interdits** (protocole de Montréal).",
-          "**HCFC** (ex : R-22) : ODP faible mais non nul → **interdits** à la production/import et en fluide neuf ; recharge en régénéré interdite.",
-          "**HFC** (ex : R-134a, R-404A, R-410A, R-32) : ODP nul mais **GWP souvent élevé** → visés par les quotas F-Gas.",
-          "**HFO** (ex : R-1234yf, R-1234ze) : GWP très faible, légèrement inflammables (A2L le plus souvent).",
-          "**Naturels** : R-717 ammoniac (NH₃), R-744 CO₂, R-290 propane, R-600a isobutane — GWP quasi nul.",
+        blocks: [
+          {
+            type: "table",
+            head: ["Famille", "Exemple", "ODP", "GWP", "Statut"],
+            rows: [
+              [{ t: "CFC", b: true }, "R-12", { t: "Élevé", c: "var(--coral)" }, { t: "Élevé", c: "var(--coral)" }, { t: "Interdit", c: "var(--coral)" }],
+              [{ t: "HCFC", b: true }, "R-22", { t: "Faible", c: "var(--amber)" }, "~1810", { t: "Interdit (neuf)", c: "var(--coral)" }],
+              [{ t: "HFC", b: true }, "R-404A", { t: "0", c: "var(--lime)" }, { t: "Élevé", c: "var(--coral)" }, { t: "Quotas F-Gas", c: "var(--amber)" }],
+              [{ t: "HFO", b: true }, "R-1234yf", { t: "0", c: "var(--lime)" }, { t: "Très faible", c: "var(--lime)" }, { t: "Autorisé (A2L)", c: "var(--lime)" }],
+              [{ t: "Naturels", b: true }, "CO₂ · NH₃ · HC", { t: "0", c: "var(--lime)" }, { t: "≈ 0", c: "var(--lime)" }, { t: "Encouragés", c: "var(--lime)" }],
+            ],
+          },
         ],
       },
       {
-        h: "Désignation et mélanges",
-        points: [
-          "Un fluide pur porte un numéro (R-134a). Les **mélanges** sont numérotés en série 400 (**zéotropes**) ou 500 (**azéotropes**).",
-          "**Azéotrope** (série 500, ex R-507) : se comporte comme un corps pur, pas de glissement.",
-          "**Zéotrope** (série 400, ex R-407C, R-404A) : présente un **glissement de température (glide)** — la composition change en changeant d'état.",
-          "⚠️ Un mélange zéotrope se **charge toujours en phase liquide** pour ne pas modifier sa composition. Une fuite le déséquilibre.",
+        h: "GWP : l'écart est énorme",
+        blocks: [
+          {
+            type: "bars", max: 3922, unit: "", note: "GWP indicatif (effet de serre, CO₂ = 1). 1 kg de R-404A ≈ 3922 kg de CO₂ !",
+            items: [
+              { label: "CO₂ (R-744)", value: 1, display: "1", color: "var(--lime)" },
+              { label: "Propane (R-290)", value: 3, display: "3", color: "var(--lime)" },
+              { label: "R-1234yf (HFO)", value: 4, display: "≈4", color: "var(--lime)" },
+              { label: "R-32", value: 675, display: "675", color: "var(--amber)" },
+              { label: "R-134a", value: 1430, display: "1430", color: "var(--coral)" },
+              { label: "R-410A", value: 2088, display: "2088", color: "var(--coral)" },
+              { label: "R-404A", value: 3922, display: "3922", color: "var(--coral)" },
+            ],
+          },
         ],
-        memo: "Zéotrope = série 400 = glissement = charge en liquide.",
       },
       {
-        h: "Classification de sécurité (ASHRAE / EN 378)",
-        points: [
-          "**Toxicité** : A = faible, B = élevée.",
-          "**Inflammabilité** : 1 = non inflammable, 2L = faiblement inflammable, 2 = inflammable, 3 = très inflammable.",
-          "Exemples : R-134a et R-744 (CO₂) → **A1** ; R-32 → **A2L** ; R-290 (propane) → **A3** ; R-717 (ammoniac) → **B2L** (toxique et légèrement inflammable).",
+        h: "Classification de sécurité",
+        blocks: [
+          { type: "diagram", id: "safety" },
+          { type: "callout", tone: "memo", text: "**Lettre = toxicité** (A faible, B élevée). **Chiffre = inflammabilité** (1 non, 2L faible, 2 moyenne, 3 forte)." },
         ],
       },
       {
-        h: "Particularités des naturels",
-        points: [
-          "**CO₂ (R-744)** : GWP = 1, non toxique, ininflammable, mais fonctionne à **très hautes pressions** (cycle souvent transcritique).",
-          "**Ammoniac (R-717)** : excellent rendement, GWP nul, mais **toxique et irritant** — odeur détectable très tôt.",
-          "**Hydrocarbures (R-290, R-600a)** : très bon rendement, GWP faible, mais **inflammables** → charges limitées et précautions.",
+        h: "Corps purs & mélanges",
+        blocks: [
+          {
+            type: "compare",
+            a: {
+              title: "Azéotrope (série 500)", color: "var(--sky)",
+              points: ["Se comporte comme un **corps pur**", "**Pas de glissement** de température", "Ex : R-507"],
+            },
+            b: {
+              title: "Zéotrope (série 400)", color: "var(--amber)",
+              points: ["**Glissement** de température (glide)", "La composition change en changeant d'état", "⚠️ Se charge **en phase liquide**", "Ex : R-407C, R-404A"],
+            },
+          },
+          { type: "callout", tone: "warn", text: "Un mélange zéotrope se **charge toujours en phase liquide** : une fuite ou une charge en vapeur déséquilibre le mélange." },
         ],
       },
     ],
   },
 
   reglementation: {
-    intro: "Deux enjeux : la **couche d'ozone** (protocole de Montréal → ODP) et l'**effet de serre** (règlement F-Gas → GWP). L'attestation d'aptitude est obligatoire pour manipuler les fluides.",
+    intro: "Deux enjeux distincts : la **couche d'ozone** (protocole de Montréal → ODP) et l'**effet de serre** (règlement F-Gas → GWP). L'attestation d'aptitude est obligatoire pour manipuler les fluides.",
     sections: [
       {
-        h: "Deux indicateurs à ne pas confondre",
-        points: [
-          "**ODP** (Ozone Depletion Potential) = potentiel d'appauvrissement de la couche d'ozone. Référence : R-11 = 1. Les HFC ont un **ODP = 0**.",
-          "**GWP** (Global Warming Potential) = potentiel de réchauffement global sur 100 ans. Référence : **CO₂ = 1**.",
-          "Exemple : R-404A a un GWP ≈ 3922 → 1 kg de R-404A ≈ 3922 kg de CO₂.",
+        h: "ODP vs GWP : ne pas confondre",
+        blocks: [
+          {
+            type: "cards", cols: 2,
+            items: [
+              { emoji: "🕳️", title: "ODP", sub: "Appauvrissement de la couche d'ozone. Référence R-11 = 1. Les HFC ont un ODP = 0.", color: "var(--sky)", tags: ["Ozone", "Montréal"] },
+              { emoji: "🌡️", title: "GWP", sub: "Potentiel de réchauffement global sur 100 ans. Référence CO₂ = 1.", color: "var(--coral)", tags: ["Climat", "F-Gas"] },
+            ],
+          },
         ],
-        memo: "ODP = ozone. GWP = réchauffement. CO₂ = 1.",
       },
       {
         h: "La tonne équivalent CO₂ (téqCO₂)",
-        points: [
-          "C'est l'unité de référence de la F-Gas pour les obligations de contrôle.",
-          "**téqCO₂ = masse de fluide (en tonnes) × GWP**, soit (masse en kg ÷ 1000) × GWP.",
-          "Exemple : 5 kg de R-410A (GWP ≈ 2088) → (5/1000) × 2088 ≈ **10,4 téqCO₂**.",
+        blocks: [
+          { type: "callout", tone: "memo", text: "**téqCO₂ = masse (tonnes) × GWP**, soit **(kg ÷ 1000) × GWP**. C'est l'unité de référence pour les obligations de contrôle." },
+          {
+            type: "table", head: ["Exemple", "Calcul", "Résultat"],
+            rows: [
+              ["5 kg de R-410A (GWP 2088)", "(5 ÷ 1000) × 2088", { t: "≈ 10,4 téqCO₂", c: "var(--lime)", b: true }],
+              ["1 kg de R-404A (GWP 3922)", "(1 ÷ 1000) × 3922", { t: "≈ 3,9 téqCO₂", c: "var(--lime)", b: true }],
+              ["3 kg de R-134a (GWP 1430)", "(3 ÷ 1000) × 1430", { t: "≈ 4,3 téqCO₂", c: "var(--lime)", b: true }],
+            ],
+          },
         ],
       },
       {
-        h: "Les textes",
-        points: [
-          "**Protocole de Montréal (1987)** : élimination des substances qui détruisent l'ozone (CFC puis HCFC).",
-          "**Règlement (UE) n° 517/2014 (F-Gas)** : encadre les gaz à effet de serre fluorés — **quotas** de HFC en baisse, **interdictions** progressives de mise sur le marché selon le GWP, obligations de contrôle et de récupération.",
-          "Objectif : réduire fortement les quantités de HFC mises sur le marché (phase-down).",
-        ],
-      },
-      {
-        h: "Obligations de l'opérateur / du technicien",
-        points: [
-          "Détenir l'**attestation d'aptitude** correspondant aux opérations réalisées.",
-          "L'entreprise doit posséder une **attestation de capacité** et les outillages requis (dont un groupe de récupération).",
-          "Tenir un **registre / fiche d'intervention** (fluide, quantité chargée/récupérée, contrôles) et le conserver (5 ans).",
-          "**Interdiction de dégazer** volontairement le fluide dans l'atmosphère.",
+        h: "Les textes clés",
+        blocks: [
+          {
+            type: "steps",
+            items: [
+              { title: "Protocole de Montréal (1987)", text: "Élimine les substances qui détruisent l'ozone : d'abord les CFC, puis les HCFC." },
+              { title: "Règlement (UE) 517/2014 « F-Gas »", text: "Encadre les gaz fluorés : quotas HFC en baisse (phase-down), interdictions selon le GWP, contrôles et récupération obligatoires." },
+            ],
+          },
         ],
       },
       {
         h: "Les catégories d'attestation",
-        points: [
-          "**Catégorie I** : la plus complète — **toutes les opérations** (contrôle d'étanchéité, récupération, mise en service, maintenance) sur **tous les équipements, quelle que soit la charge**.",
-          "Catégories II, III, IV : périmètres restreints (charge limitée, ou contrôle d'étanchéité seul sans ouverture du circuit).",
-          "👉 Détenir la catégorie I autorise donc l'ensemble des interventions.",
+        blocks: [
+          {
+            type: "table", head: ["Cat.", "Périmètre autorisé"],
+            rows: [
+              [{ t: "I", c: "var(--lime)", b: true }, { t: "Toutes les opérations, sur tous les équipements, sans limite de charge", b: true }],
+              [{ t: "II", b: true }, "Charge limitée / contrôle d'étanchéité sans ouverture du circuit"],
+              [{ t: "III", b: true }, "Récupération sur équipements de faible charge"],
+              [{ t: "IV", b: true }, "Contrôle d'étanchéité seul, sans ouverture du circuit"],
+            ],
+            caption: "La catégorie I couvre tout. (Périmètres II–IV indicatifs, à vérifier au référentiel.)",
+          },
+        ],
+      },
+      {
+        h: "Obligations de l'opérateur",
+        blocks: [
+          { type: "points", items: [
+            "Détenir l'**attestation d'aptitude** correspondant aux opérations ; l'entreprise détient l'**attestation de capacité** + les outillages.",
+            "Tenir un **registre / fiche d'intervention** et le conserver **5 ans**.",
+            "**Interdiction de dégazer** volontairement le fluide dans l'atmosphère.",
+          ] },
         ],
       },
     ],
   },
 
   etancheite: {
-    intro: "Une installation étanche = moins de fuites = moins d'émissions et de recharges. La F-Gas impose des **contrôles périodiques dont la fréquence dépend de la charge en téqCO₂**.",
+    intro: "Une installation étanche = moins d'émissions et de recharges. La F-Gas impose des **contrôles périodiques dont la fréquence dépend de la charge en téqCO₂**.",
     sections: [
       {
-        h: "Fréquences de contrôle (règlement 517/2014)",
-        points: [
-          "**< 5 téqCO₂** : pas d'obligation de contrôle périodique.",
-          "**≥ 5 et < 50 téqCO₂** : au moins **tous les 12 mois**.",
-          "**≥ 50 et < 500 téqCO₂** : au moins **tous les 6 mois**.",
-          "**≥ 500 téqCO₂** : au moins **tous les 3 mois** ET **système de détection de fuites obligatoire**.",
-          "Équipements **hermétiquement scellés et étiquetés comme tels** : seuil relevé à **< 10 téqCO₂** avant obligation.",
-        ],
-        memo: "5 / 50 / 500 → 12 / 6 / 3 mois. ≥500 = détection fixe obligatoire.",
-      },
-      {
-        h: "Le bonus du système de détection",
-        points: [
-          "Si un **système de détection de fuites fixe** est installé, les intervalles de contrôle peuvent être **doublés** (ex : 6 mois → 12 mois).",
-          "Ce système de détection doit lui-même être **vérifié au moins tous les 12 mois**.",
+        h: "Fréquences de contrôle",
+        blocks: [
+          {
+            type: "table", head: ["Charge (téqCO₂)", "Sans détection", "Avec détection fixe"],
+            rows: [
+              [{ t: "< 5", b: true }, { t: "Aucun contrôle", c: "var(--txt-2)" }, "—"],
+              [{ t: "5 – 50", b: true }, { t: "12 mois", c: "var(--lime)" }, { t: "24 mois", c: "var(--sky)" }],
+              [{ t: "50 – 500", b: true }, { t: "6 mois", c: "var(--amber)" }, { t: "12 mois", c: "var(--sky)" }],
+              [{ t: "≥ 500", b: true }, { t: "3 mois", c: "var(--coral)" }, { t: "6 mois", c: "var(--sky)" }],
+            ],
+            caption: "Équipement hermétiquement scellé et étiqueté : seuil relevé à < 10 téqCO₂.",
+          },
+          { type: "callout", tone: "warn", text: "À partir de **500 téqCO₂** : un **système de détection de fuites fixe est obligatoire** (et le contrôle passe à 3 mois)." },
         ],
       },
       {
-        h: "Méthodes de contrôle",
-        points: [
-          "**Méthodes directes** : détecteur électronique de fuite, spray moussant, lampe UV + traceur fluorescent, azote sous pression.",
-          "**Méthodes indirectes** : analyse des paramètres (pressions, températures, niveau d'huile, courant, sous-refroidissement anormal…) qui révèlent une perte de charge.",
-          "Un détecteur électronique de fuite doit être **contrôlé/calibré périodiquement** (au moins tous les 12 mois) pour rester fiable (sensibilité de l'ordre de 5 g/an).",
+        h: "Le bonus détection",
+        blocks: [
+          { type: "callout", tone: "memo", text: "Un **système de détection fixe** permet de **doubler** les intervalles de contrôle (6 mois → 12 mois). Ce système doit lui-même être **vérifié tous les 12 mois**." },
+        ],
+      },
+      {
+        h: "Méthodes de détection",
+        blocks: [
+          {
+            type: "compare",
+            a: {
+              title: "🎯 Directes", color: "var(--lime)",
+              points: ["Détecteur électronique de fuite", "Eau savonneuse / mousse", "Lampe UV + traceur fluorescent", "Azote sous pression"],
+            },
+            b: {
+              title: "📉 Indirectes", color: "var(--sky)",
+              points: ["Analyse des pressions & températures", "Niveau d'huile, intensité électrique", "Sous-refroidissement anormal", "= symptômes d'une perte de charge"],
+            },
+          },
+          { type: "callout", tone: "info", text: "Le détecteur électronique doit être **contrôlé / calibré au moins tous les 12 mois** (sensibilité de l'ordre de 5 g/an)." },
         ],
       },
       {
         h: "Après réparation d'une fuite",
-        points: [
-          "Réparer, puis **contrôler l'étanchéité de la zone réparée**.",
-          "Un **contrôle de suivi doit être réalisé** (dans le mois suivant) pour vérifier l'efficacité de la réparation.",
-          "Tracer l'intervention dans le registre.",
+        blocks: [
+          {
+            type: "steps",
+            items: [
+              { title: "Réparer", text: "Intervenir sur la fuite identifiée." },
+              { title: "Contrôler la zone réparée", text: "Vérifier l'étanchéité localement." },
+              { title: "Contrôle de suivi", text: "Nouveau contrôle dans le mois pour valider l'efficacité de la réparation." },
+              { title: "Tracer", text: "Consigner l'intervention au registre." },
+            ],
+          },
         ],
       },
     ],
   },
 
   composants: {
-    intro: "Connaître le rôle de chaque organe permet de diagnostiquer, contrôler et intervenir sans erreur. Voici les composants majeurs d'un circuit à compression.",
+    intro: "Connaître le rôle de chaque organe permet de diagnostiquer, contrôler et intervenir sans erreur. Voici les composants d'un circuit à compression.",
     sections: [
       {
-        h: "Les 4 organes principaux",
-        points: [
-          "**Compresseur** : le « cœur » — met le fluide en mouvement et élève la pression. Types : hermétique, semi-hermétique, ouvert ; à pistons, scroll, à vis…",
-          "**Condenseur** : échangeur côté HP où le fluide rejette la chaleur (à air ou à eau).",
-          "**Détendeur** : régule le débit de fluide vers l'évaporateur et fait chuter la pression. Types : thermostatique (TD), électronique, capillaire.",
-          "**Évaporateur** : échangeur côté BP où le fluide absorbe la chaleur et produit le froid.",
+        h: "Situer les organes sur le cycle",
+        blocks: [
+          { type: "diagram", id: "cycle" },
         ],
       },
       {
-        h: "Organes annexes indispensables",
-        points: [
-          "**Bouteille liquide** (réservoir) : stocke le liquide et amortit les variations de charge.",
-          "**Déshydrateur / filtre** : capte l'**humidité** et les impuretés (l'eau + fluide → acides → boues, corrosion).",
-          "**Voyant liquide** : contrôle visuel — des bulles signalent un manque de charge ou de sous-refroidissement ; l'indicateur d'humidité change de couleur.",
-          "**Séparateur d'huile / anti-coup de liquide** : protège le compresseur.",
+        h: "Organes principaux & annexes",
+        blocks: [
+          {
+            type: "table", head: ["Composant", "Rôle"],
+            rows: [
+              [{ t: "🔧 Compresseur", b: true }, "Met le fluide en mouvement et élève la pression (le « cœur »)"],
+              [{ t: "🔥 Condenseur", b: true }, "Échangeur HP : le fluide rejette la chaleur et se condense"],
+              [{ t: "💧 Détendeur", b: true }, "Dose le débit vers l'évaporateur et fait chuter la pression"],
+              [{ t: "❄️ Évaporateur", b: true }, "Échangeur BP : le fluide absorbe la chaleur et produit le froid"],
+              [{ t: "🛢️ Bouteille liquide", b: true }, "Stocke le liquide, amortit les variations de charge"],
+              [{ t: "🧽 Déshydrateur", b: true }, "Capte l'humidité et les impuretés (eau → acides → corrosion)"],
+              [{ t: "👁️ Voyant liquide", b: true }, "Contrôle visuel : des bulles = manque de charge / sous-refroidissement"],
+            ],
+          },
         ],
       },
       {
-        h: "Sécurités et régulation",
-        points: [
-          "**Pressostat HP** : coupe si la haute pression devient dangereuse (condenseur encrassé, ventilateur en panne…).",
-          "**Pressostat BP** : protège contre une pression trop basse (manque de charge, évaporateur givré…).",
-          "**Pressostat différentiel d'huile** : vérifie la lubrification du compresseur.",
+        h: "Sécurités (pressostats)",
+        blocks: [
+          {
+            type: "cards", cols: 3,
+            items: [
+              { emoji: "🔴", title: "Pressostat HP", sub: "Coupe si la haute pression devient dangereuse (condenseur encrassé, ventilateur en panne).", color: "var(--coral)" },
+              { emoji: "🔵", title: "Pressostat BP", sub: "Protège d'une pression trop basse (manque de charge, évaporateur givré).", color: "var(--sky)" },
+              { emoji: "🛢️", title: "Différentiel d'huile", sub: "Vérifie la lubrification du compresseur.", color: "var(--amber)" },
+            ],
+          },
         ],
       },
       {
         h: "Le rôle de l'huile",
-        points: [
-          "L'huile lubrifie le compresseur mais **circule avec le fluide** dans tout le circuit.",
-          "Elle doit **revenir au compresseur** (pentes, vitesses de vapeur suffisantes).",
-          "L'huile doit être **compatible avec le fluide** (ex : POE pour les HFC, qui est très hygroscopique → attention à l'humidité).",
+        blocks: [
+          { type: "points", items: [
+            "L'huile lubrifie le compresseur mais **circule avec le fluide** dans tout le circuit → elle doit **revenir** au compresseur (pentes, vitesses suffisantes).",
+            "Elle doit être **compatible** avec le fluide (POE pour les HFC).",
+          ] },
+          { type: "callout", tone: "warn", text: "Les huiles **POE** (HFC) sont très **hygroscopiques** : elles absorbent vite l'humidité → limiter l'ouverture du circuit et bien tirer au vide." },
         ],
       },
     ],
@@ -247,46 +359,51 @@ export const FICHES: Record<ThemeId, Fiche> = {
     intro: "Le savoir-faire pratique : intervenir proprement, **récupérer sans rejet**, tirer au vide, charger et braser dans les règles, en sécurité.",
     sections: [
       {
-        h: "Récupération, recyclage, régénération, destruction",
-        points: [
-          "**Récupération** : retirer le fluide de l'installation vers une bouteille adaptée (jamais de rejet à l'atmosphère). Obligatoire avant toute ouverture du circuit et en fin de vie.",
-          "**Recyclage** : nettoyage de base du fluide (filtration, déshydratation) pour réemploi, souvent **sur site**.",
-          "**Régénération** : retraitement poussé (en usine) pour atteindre les caractéristiques d'un fluide **neuf**.",
-          "**Destruction** : élimination par un procédé agréé (incinération à haute température).",
+        h: "Que faire du fluide usagé ?",
+        blocks: [
+          {
+            type: "cards", cols: 2,
+            items: [
+              { emoji: "♻️", title: "Récupération", sub: "Retirer le fluide vers une bouteille adaptée (jamais de rejet). Obligatoire avant ouverture / fin de vie.", color: "var(--lime)" },
+              { emoji: "🧴", title: "Recyclage", sub: "Nettoyage de base (filtration, déshydratation) pour réemploi, souvent sur site.", color: "var(--sky)" },
+              { emoji: "🏭", title: "Régénération", sub: "Retraitement poussé en usine pour retrouver les specs d'un fluide neuf.", color: "var(--violet)" },
+              { emoji: "🔥", title: "Destruction", sub: "Élimination par procédé agréé (incinération haute température).", color: "var(--coral)" },
+            ],
+          },
         ],
       },
       {
-        h: "Bouteilles de récupération — règles de sécurité",
-        points: [
-          "Utiliser une **bouteille de récupération** dédiée (différente des bouteilles de fluide neuf).",
-          "Ne **jamais dépasser 80 % de remplissage** (marge pour la dilatation du liquide → risque d'éclatement).",
-          "Ne **jamais mélanger** des fluides différents dans une même bouteille (fluide mélangé = destruction).",
-          "Respecter les dates de requalification et les températures de stockage.",
-        ],
-        memo: "Bouteille de récup : 80 % maxi, jamais de mélange.",
-      },
-      {
-        h: "Tirage au vide",
-        points: [
-          "Réalisé **après récupération et avant charge** : il élimine l'**air et l'humidité** (incondensables) du circuit.",
-          "L'humidité résiduelle forme des acides et peut givrer le détendeur ; l'air fait monter la HP.",
-          "On vise un **vide poussé** (de l'ordre de 500 microns / ≈ 0,67 mbar) et on vérifie sa **tenue** (le vide doit se maintenir).",
+        h: "Déroulé d'une intervention propre",
+        blocks: [
+          {
+            type: "steps",
+            items: [
+              { title: "Récupérer le fluide", text: "Vers une bouteille de récupération dédiée — jamais à l'atmosphère." },
+              { title: "Tirer au vide", text: "Éliminer l'air et l'humidité (incondensables). Viser un vide poussé (~500 microns) et vérifier sa tenue." },
+              { title: "Braser sous azote", text: "Balayage d'azote (gaz inerte) pour éviter la calamine à l'intérieur des tubes." },
+              { title: "Charger", text: "Mélange zéotrope → en phase liquide. Ajuster via la surchauffe et le sous-refroidissement." },
+            ],
+          },
         ],
       },
       {
-        h: "Brasage et charge",
-        points: [
-          "**Braser sous balayage d'azote** (gaz inerte) pour éviter la formation de calamine/oxydation à l'intérieur des tubes.",
-          "L'azote n'est jamais utilisé pour la mise en pression du circuit sans précaution — on ne monte pas en pression avec de l'oxygène (risque d'explosion).",
-          "Charger un mélange **zéotrope en phase liquide** ; ajuster la charge en contrôlant surchauffe et sous-refroidissement.",
+        h: "Bouteille de récupération",
+        blocks: [
+          { type: "diagram", id: "bottle80" },
+          { type: "callout", tone: "warn", text: "**80 % de remplissage maximum** (marge de dilatation du liquide) · **jamais de mélange** de fluides (une bouteille = un fluide, sinon destruction)." },
         ],
       },
       {
         h: "Sécurité & EPI",
-        points: [
-          "Gants et **lunettes de protection** : le fluide liquide provoque des **gelures**, et sous pression peut projeter.",
-          "Ventiler : les fluides plus lourds que l'air s'accumulent au sol et peuvent provoquer une **anoxie** (manque d'oxygène).",
-          "Fluides inflammables (A2L, A3) ou toxiques (ammoniac) → procédures et détection spécifiques.",
+        blocks: [
+          {
+            type: "cards", cols: 3,
+            items: [
+              { emoji: "🧤", title: "Gelures", sub: "Le fluide liquide gèle la peau → gants + lunettes.", color: "var(--sky)" },
+              { emoji: "💨", title: "Anoxie", sub: "Fluides + lourds que l'air → s'accumulent au sol → ventiler.", color: "var(--amber)" },
+              { emoji: "💥", title: "Jamais d'oxygène", sub: "O₂ + huile sous pression = explosion. Mise en pression à l'azote.", color: "var(--coral)" },
+            ],
+          },
         ],
       },
     ],

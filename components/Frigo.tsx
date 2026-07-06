@@ -5,8 +5,9 @@ import Link from "next/link";
 import f from "@/styles/frigo.module.css";
 import { Icon } from "./Icon";
 import {
-  THEMES, FICHES, themeById, type ThemeId, type Question, type Fiche, type FicheSection,
+  THEMES, FICHES, themeById, type ThemeId, type Question, type Fiche, type FicheSection, type Block, type Cell,
 } from "@/lib/frigo-data";
+import { Diagram } from "./FrigoDiagrams";
 import {
   loadProgress, saveProgress, resetProgress, pickQuiz, updateMastery, globalMastery,
   levelFor, refreshBadges, BADGE_DEFS, type Progress,
@@ -439,12 +440,7 @@ function FicheView({ theme, onQuiz, onBack }: { theme: ThemeId; onQuiz: () => vo
       {fiche.sections.map((sec: FicheSection, i) => (
         <div key={i} className={f.fsec}>
           <h3>{sec.h}</h3>
-          <div className={f.fpoints}>
-            {sec.points.map((pt, j) => (
-              <div key={j} className={f.fpoint}><span><RichText text={pt} /></span></div>
-            ))}
-          </div>
-          {sec.memo && <div className={f.fmemo}><span><RichText text={sec.memo} /></span></div>}
+          {sec.blocks.map((b, j) => <BlockView key={j} block={b} />)}
         </div>
       ))}
 
@@ -456,6 +452,102 @@ function FicheView({ theme, onQuiz, onBack }: { theme: ThemeId; onQuiz: () => vo
       </div>
     </>
   );
+}
+
+/* ---- Rendu d'un cellule de tableau (texte, couleur, gras) ---- */
+function CellView({ cell }: { cell: Cell }) {
+  if (typeof cell === "string") return <RichText text={cell} />;
+  return <span style={{ color: cell.c, fontWeight: cell.b ? 700 : undefined }}><RichText text={cell.t} /></span>;
+}
+
+/* ---- Rendu d'un bloc visuel de fiche ---- */
+function BlockView({ block }: { block: Block }) {
+  switch (block.type) {
+    case "points":
+      return (
+        <div className={f.fpoints}>
+          {block.items.map((pt, j) => <div key={j} className={f.fpoint}><span><RichText text={pt} /></span></div>)}
+        </div>
+      );
+
+    case "callout": {
+      const cls = block.tone === "warn" ? f.calloutWarn : block.tone === "info" ? f.calloutInfo : f.calloutMemo;
+      const ic = block.tone === "warn" ? "⚠️" : block.tone === "info" ? "ℹ️" : "💡";
+      return <div className={f.callout + " " + cls}><span className={f.calloutIc}>{ic}</span><span><RichText text={block.text} /></span></div>;
+    }
+
+    case "diagram":
+      return <Diagram id={block.id} />;
+
+    case "table":
+      return (
+        <div className={f.tablewrap}>
+          <table className={f.table}>
+            <thead><tr>{block.head.map((h, i) => <th key={i}>{h}</th>)}</tr></thead>
+            <tbody>
+              {block.rows.map((row, i) => (
+                <tr key={i}>{row.map((c, j) => <td key={j}><CellView cell={c} /></td>)}</tr>
+              ))}
+            </tbody>
+          </table>
+          {block.caption && <div className={f.tablecap}>{block.caption}</div>}
+        </div>
+      );
+
+    case "cards":
+      return (
+        <div className={f.cardgrid} style={{ gridTemplateColumns: `repeat(${block.cols ?? 2}, 1fr)` }}>
+          {block.items.map((it, i) => (
+            <div key={i} className={f.vcard} style={{ borderColor: it.color ? `color-mix(in srgb, ${it.color} 40%, transparent)` : undefined }}>
+              {it.emoji && <div className={f.vcardEmoji}>{it.emoji}</div>}
+              <b style={{ color: it.color }}>{it.title}</b>
+              {it.sub && <span><RichText text={it.sub} /></span>}
+              {it.tags && <div className={f.vtags}>{it.tags.map((t) => <em key={t}>{t}</em>)}</div>}
+            </div>
+          ))}
+        </div>
+      );
+
+    case "compare":
+      return (
+        <div className={f.compare}>
+          {[block.a, block.b].map((pane, i) => (
+            <div key={i} className={f.cpane} style={{ borderTopColor: pane.color }}>
+              <b style={{ color: pane.color }}>{pane.title}</b>
+              <ul>{pane.points.map((p, j) => <li key={j}><RichText text={p} /></li>)}</ul>
+            </div>
+          ))}
+        </div>
+      );
+
+    case "steps":
+      return (
+        <div className={f.steps}>
+          {block.items.map((st, i) => (
+            <div key={i} className={f.step}>
+              <span className={f.stepn}>{i + 1}</span>
+              <div className={f.stepbody}><b>{st.title}</b><span><RichText text={st.text} /></span></div>
+            </div>
+          ))}
+        </div>
+      );
+
+    case "bars":
+      return (
+        <div className={f.bars}>
+          {block.items.map((it, i) => (
+            <div key={i} className={f.barrow}>
+              <span className={f.barlab}>{it.label}</span>
+              <div className={f.bartrack}>
+                <i style={{ width: `${Math.max((it.value / block.max) * 100, 1.5)}%`, background: it.color ?? "var(--lime)" }} />
+              </div>
+              <span className={f.barval} style={{ color: it.color }}>{it.display ?? it.value}{block.unit}</span>
+            </div>
+          ))}
+          {block.note && <div className={f.barnote}>{block.note}</div>}
+        </div>
+      );
+  }
 }
 
 /* ============================== CONFETTI ============================== */
