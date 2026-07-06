@@ -138,6 +138,7 @@ export default function MobileApp() {
         </div>
         <div className={s.demolinks}>
           <Link href="/tablet" className={s.alt}><Icon name="tablet" size={16} /> Version tablette</Link>
+          <Link href="/frigo" className={s.alt}>❄️ Révision fluides frigo</Link>
         </div>
       </aside>
 
@@ -2211,6 +2212,16 @@ function ProfilScreen({ profile, email, go, unread }: { profile: Profile | null;
       <div className={`${s.plist} ${s.r} ${s.r4}`}>
         <ProfRow icon="fit" label="Partage & proches" chevron onClick={() => go("partage")} />
         <ProfRow icon="send" label={unread ? `Messages · ${unread} non lu${unread > 1 ? "s" : ""}` : "Messages"} chevron onClick={() => go("msg")} />
+      </div>
+
+      <div className={s.sectionH} style={{ marginTop: 22 }}><h3>Outils perso</h3></div>
+      <div className={`${s.plist} ${s.r} ${s.r4}`}>
+        <Link href="/frigo" style={{ textDecoration: "none", color: "inherit" }}>
+          <div className={s.prow} style={{ cursor: "pointer" }}>
+            <div className={s.pic}>❄️</div>Révision Attestation fluides frigo (cat. I)
+            <span className={s.ch}>›</span>
+          </div>
+        </Link>
       </div>
 
       <div className={s.sectionH} style={{ marginTop: 22 }}><h3>Notifications</h3></div>
