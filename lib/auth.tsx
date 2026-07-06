@@ -21,8 +21,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadProfile = useCallback(async (uid: string) => {
-    const { data } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
-    setProfile(data as Profile | null);
+    try {
+      const { data } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
+      setProfile(data as Profile | null);
+    } catch (e) {
+      console.error("loadProfile failed", e);
+    }
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -31,19 +35,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!active) return;
-      setSession(data.session);
-      if (data.session?.user) await loadProfile(data.session.user.id);
-      setLoading(false);
-    });
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_e, s) => {
+    // Filet de sécurité : ne jamais rester bloqué sur l'écran de chargement,
+    // même si getSession() traîne ou rejette (réseau, token expiré…).
+    const failsafe = setTimeout(() => { if (active) setLoading(false); }, 8000);
+
+    supabase.auth.getSession()
+      .then(async ({ data }) => {
+        if (!active) return;
+        setSession(data.session);
+        if (data.session?.user) await loadProfile(data.session.user.id);
+      })
+      .catch((e) => console.error("getSession failed", e))
+      .finally(() => { if (active) { clearTimeout(failsafe); setLoading(false); } });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      // IMPORTANT : ce callback tient un verrou interne Supabase. Ne PAS y
+      // faire d'await d'appels Supabase (deadlock). On diffère avec setTimeout.
       setSession(s);
-      if (s?.user) await loadProfile(s.user.id);
+      if (s?.user) setTimeout(() => { if (active) loadProfile(s.user.id); }, 0);
       else setProfile(null);
     });
-    return () => { active = false; sub.subscription.unsubscribe(); };
+    return () => { active = false; clearTimeout(failsafe); sub.subscription.unsubscribe(); };
   }, [loadProfile]);
 
   const signOut = useCallback(async () => {
